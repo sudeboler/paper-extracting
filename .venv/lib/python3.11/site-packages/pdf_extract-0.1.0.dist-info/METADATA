@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: pdf-extract
+Version: 0.1.0
+Summary: PDF → NuExtract (OpenAI-compatible) JSON extraction pipeline
+Author: you
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.31
+Requires-Dist: pypdf>=4.2.0
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: tomli>=2.0.1; python_version < "3.11"

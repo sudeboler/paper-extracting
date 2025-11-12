@@ -1,0 +1,2 @@
+[console_scripts]
+pdf-extract = src.main:cli
