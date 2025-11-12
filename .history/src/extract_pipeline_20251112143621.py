@@ -114,57 +114,68 @@ def _merge_json_results(acc: Dict[str, Any], cur: Dict[str, Any]) -> Dict[str, A
             acc[k] = v
     return acc
 
-def _extract_focus_contexts(full_text: str) -> List[str]:
-    """
-    Build small, high-signal contexts without regex parsing of values:
-    - abstract block (first ~5k chars or until 'Introduction')
-    - figure/table captions
-    - lines containing UK/United Kingdom/England/Scotland/Wales/Ireland keywords
-    """
-    # Abstract (naïef): alles tot 'Introduction' of 5000 chars
-    lower = full_text.lower()
-    cut = lower.find("introduction")
-    abstract = full_text[: max(3000, min(len(full_text), 5000 if cut == -1 else cut))]
-
-    # Captions & keyword lines (zonder regex; simpele checks)
-    lines = [ln.strip() for ln in full_text.splitlines() if ln.strip()]
-    caption_like: List[str] = []
-    for ln in lines:
-        head = ln[:12].lower()
-        if head.startswith("figure") or head.startswith("table"):
-            caption_like.append(ln)
-        # country-ish hints
-        lnl = ln.lower()
-        if (" uk " in f" {lnl} ") or ("united kingdom" in lnl) or ("bristol" in lnl) \
-           or ("england" in lnl) or ("scotland" in lnl) or ("wales" in lnl) or ("ireland" in lnl):
-            caption_like.append(ln)
-
-    # Compose windows (limit size to keep cheap)
-    windows: List[str] = []
-    if abstract:
-        windows.append(abstract[-4000:])  # last 4k of abstract region
-    if caption_like:
-        joined = "\n".join(caption_like)
-        windows.append(joined[:4000])
-    return windows
+def _windows_by_keywords(txt: str, keywords: List[str], half_window: int = 1400, max_hits: int = 10) -> List[str]:
+    """Return small context windows around keyword hits (no regex value parsing)."""
+    t_low = txt.lower()
+    spans: List[tuple[int, int]] = []
+    for kw in keywords:
+        start = 0
+        needle = kw.lower()
+        while True:
+            i = t_low.find(needle, start)
+            if i == -1:
+                break
+            l = max(0, i - half_window)
+            r = min(len(txt), i + len(kw) + half_window)
+            spans.append((l, r))
+            start = i + len(kw)
+            if len(spans) >= max_hits:
+                break
+        if len(spans) >= max_hits:
+            break
+    if not spans:
+        return []
+    spans.sort()
+    merged: List[tuple[int, int]] = []
+    cur_l, cur_r = spans[0]
+    for l, r in spans[1:]:
+        if l <= cur_r + 50:
+            cur_r = max(cur_r, r)
+        else:
+            merged.append((cur_l, cur_r))
+            cur_l, cur_r = l, r
+    merged.append((cur_l, cur_r))
+    return [txt[l:r] for (l, r) in merged]
 
 # ---------- Defaults you can edit as you add fields ----------
 
-DEFAULT_TEMPLATE_VERBATIM = '{"n_included": "integer", "countries": ["verbatim-string"]}'
-DEFAULT_TEMPLATE_NORMALIZED = '{"n_included": "integer", "countries": ["string"]}'
+DEFAULT_TEMPLATE = '{"n_included": "integer", "countries": ["verbatim-string"]}'
 
 DEFAULT_INSTRUCTIONS = (
     "Extract the number of INCLUDED participants and the list of countries where the INCLUDED participants came from.\n"
     "- Include ONLY countries for the final included cohort.\n"
     "- EXCLUDE countries for screened/excluded/eligible-but-not-included participants, non-contributing sites, and author affiliations.\n"
-    '- Return each country name VERBATIM if possible (e.g., "United Kingdom of Great Britain and Northern Ireland (the)").\n'
+    '- Return each country name verbatim (e.g., "United Kingdom of Great Britain and Northern Ireland (the)").\n'
     "- Deduplicate; order does not matter."
 )
 
-NORMALIZE_SUFFIX = (
-    "If countries are referred to by abbreviations (e.g., UK), expand to the canonical country name (United Kingdom).\n"
-    "If only a region/city is given (e.g., Bristol area of the UK), infer the country (United Kingdom) and return the country."
+RETRY_INSTRUCTIONS_SUFFIX = (
+    "If the context contains country names for the included cohort, you MUST return them in `countries`.\n"
+    "Do not return an empty list when such country names are present.\n"
+    "If none are present for the included cohort, return an empty list.\n"
 )
+
+COUNTRY_KEYWORDS = [
+    "countries",
+    "country",
+    "participating countries",
+    "participants were from",
+    "recruited from",
+    "enrolled from",
+    "came from",
+    "study area within the uk",  # matches your example
+    "within the uk",             # loosened
+]
 
 # ---------- Single public function ----------
 
@@ -180,15 +191,10 @@ def extract_fields(
     chunk_chars: int = 40000,
 ) -> Dict[str, Any]:
     """
-    Single generic extractor with robust fallbacks:
-    1) Full text, VERBATIM template
-    2) Keyword-focus windows (abstract/captions), VERBATIM
-    3) If still empty: NORMALIZED template (allow UK→United Kingdom), same passes
-    4) Paragraph-aware chunk merge
+    Generic extractor. Edit `template_json` (add fields one by one) and/or `instructions`.
+    Returns the JSON object produced by NuExtract, merged across full/keyword-window/chunk passes.
     """
-    # ---- Config ----
-    tpl_verbatim = (template_json or DEFAULT_TEMPLATE_VERBATIM)
-    tpl_norm     = DEFAULT_TEMPLATE_NORMALIZED  # used only if verbatim fails
+    tpl = (template_json or DEFAULT_TEMPLATE)
     instr = (instructions or DEFAULT_INSTRUCTIONS)
 
     system_msg = (
@@ -198,83 +204,73 @@ def extract_fields(
         "Use only double quotes, valid UTF-8, and no trailing commas."
     )
 
-    def _run_once(text: str, tpl: str, extra_instr: str = "") -> Dict[str, Any]:
-        prompt = _build_nuextract_prompt(tpl, (instr + ("\n" + extra_instr if extra_instr else "")), text)
-        messages = [
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": prompt},
-        ]
+    wants_countries = '"countries"' in tpl
+
+    # ----- Pass 1: full-text (capped) -----
+    full_prompt = _build_nuextract_prompt(tpl, instr, paper_text[:200000])
+    messages = [
+        {"role": "system", "content": system_msg},
+        {"role": "user", "content": full_prompt},
+    ]
+    data: Dict[str, Any] = {}
+    try:
         raw = _call_llm_minimal(
             client, messages, temperature, max_tokens,
             GRAMMAR_JSON_INT_OR_NULL if use_grammar else None
         )
-        return _json_load_stripping_fences(raw)
-
-    # ---- Pass 1: Full text, VERBATIM ----
-    data: Dict[str, Any] = {}
-    try:
-        data = _run_once(paper_text[:200000], tpl_verbatim)
+        data = _json_load_stripping_fences(raw)
     except Exception as e:
-        log.debug("Full verbatim failed: %s", e)
+        log.warning("Full-text LLM call failed (%s).", e)
         data = {}
 
-    if isinstance(data, dict) and data.get("countries"):
-        return data
+    # Only early-return if countries are not requested OR present and non-empty
+    if isinstance(data, dict):
+        if (not wants_countries) or (data.get("countries")):
+            return data
 
-    # ---- Pass 2: Focus windows (abstract + captions), VERBATIM ----
-    windows = _extract_focus_contexts(paper_text)
+    # ----- Pass 2: targeted keyword windows (small focused contexts) -----
+    windows = _windows_by_keywords(paper_text, COUNTRY_KEYWORDS, half_window=1400, max_hits=10)
     for w in windows:
+        retry_prompt = _build_nuextract_prompt(
+            tpl,
+            (instr + "\n" + RETRY_INSTRUCTIONS_SUFFIX) if instr else RETRY_INSTRUCTIONS_SUFFIX,
+            w
+        )
+        retry_messages = [
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": retry_prompt},
+        ]
         try:
-            d2 = _run_once(w, tpl_verbatim)
+            raw2 = _call_llm_minimal(
+                client, retry_messages, temperature, max_tokens,
+                GRAMMAR_JSON_INT_OR_NULL if use_grammar else None
+            )
+            d2 = _json_load_stripping_fences(raw2)
             if isinstance(d2, dict):
-                data = _merge_json_results(data, d2)
-        except Exception as e:
-            log.debug("Window verbatim failed: %s", e)
+                data = _merge_json_results(data if isinstance(data, dict) else {}, d2)
+        except Exception as ex:
+            log.debug("Window retry failed: %s", ex)
 
     if isinstance(data, dict) and data.get("countries"):
         return data
 
-    # ---- Pass 3: Full text, NORMALIZED (allow UK→United Kingdom), with explicit normalize rules ----
-    try:
-        d3 = _run_once(paper_text[:200000], tpl_norm, NORMALIZE_SUFFIX)
-        if isinstance(d3, dict):
-            data = _merge_json_results(data, d3)
-    except Exception as e:
-        log.debug("Full normalized failed: %s", e)
-
-    if isinstance(data, dict) and data.get("countries"):
-        return data
-
-    # ---- Pass 4: Focus windows, NORMALIZED ----
-    for w in windows:
-        try:
-            d4 = _run_once(w, tpl_norm, NORMALIZE_SUFFIX)
-            if isinstance(d4, dict):
-                data = _merge_json_results(data, d4)
-        except Exception as e:
-            log.debug("Window normalized failed: %s", e)
-
-    if isinstance(data, dict) and data.get("countries"):
-        return data
-
-    # ---- Pass 5: Paragraph-aware chunk merge (VERBATIM again to catch literal lists) ----
+    # ----- Pass 3: chunk fallback (paragraph-aware) -----
     merged: Dict[str, Any] = data if isinstance(data, dict) else {}
     for part in _chunk_text(paper_text, max_chars=chunk_chars):
+        part_prompt = _build_nuextract_prompt(tpl, instr, part)
+        part_messages = [
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": part_prompt},
+        ]
         try:
-            cur = _run_once(part, tpl_verbatim)
+            raw = _call_llm_minimal(
+                client, part_messages, temperature, max_tokens,
+                GRAMMAR_JSON_INT_OR_NULL if use_grammar else None
+            )
+            cur = _json_load_stripping_fences(raw)
             if isinstance(cur, dict):
                 merged = _merge_json_results(merged, cur)
         except Exception as ex:
-            log.debug("Chunk verbatim failed: %s", ex)
-
-    # If still empty, one last chunked try with NORMALIZED
-    if not merged.get("countries"):
-        for part in _chunk_text(paper_text, max_chars=chunk_chars):
-            try:
-                cur = _run_once(part, tpl_norm, NORMALIZE_SUFFIX)
-                if isinstance(cur, dict):
-                    merged = _merge_json_results(merged, cur)
-            except Exception as ex:
-                log.debug("Chunk normalized failed: %s", ex)
+            log.debug("Chunk failed: %s", ex)
 
     return merged
