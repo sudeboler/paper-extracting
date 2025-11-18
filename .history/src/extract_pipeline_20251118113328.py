@@ -36,7 +36,6 @@ def _json_load_stripping_fences(s: str) -> Dict[str, Any]:
     return json.loads(s)
 
 def _chunk_text(txt: str, max_chars: int = 40000):
-    """Yield chunks near paragraph boundaries to avoid splitting sections badly."""
     start = 0
     L = len(txt)
     while start < L:
@@ -73,7 +72,6 @@ def _call_llm_minimal(client: OpenAICompatibleClient,
     )
 
 def _merge_json_results(acc: Dict[str, Any], cur: Dict[str, Any]) -> Dict[str, Any]:
-    """Merge JSON results generically: list → union, numbers/strings → prefer non-null/majority."""
     from collections import Counter
     if not acc:
         return dict(cur)
@@ -83,7 +81,7 @@ def _merge_json_results(acc: Dict[str, Any], cur: Dict[str, Any]) -> Dict[str, A
             continue
         a = acc[k]
 
-        # list → union while preserving order
+        # list merge
         if isinstance(a, list) or isinstance(v, list):
             left = a if isinstance(a, list) else ([] if a is None else [a])
             right = v if isinstance(v, list) else ([] if v is None else [v])
@@ -101,7 +99,7 @@ def _merge_json_results(acc: Dict[str, Any], cur: Dict[str, Any]) -> Dict[str, A
             acc[k] = merged
             continue
 
-        # numeric: simple majority, tie → keep original
+        # numeric majority
         if isinstance(a, (int, float)) or isinstance(v, (int, float)):
             if a is None:
                 acc[k] = v
@@ -111,30 +109,24 @@ def _merge_json_results(acc: Dict[str, Any], cur: Dict[str, Any]) -> Dict[str, A
                 acc[k] = Counter([a, v]).most_common(1)[0][0]
             continue
 
-        # strings: prefer non-empty
+        # string prefer non-empty
         if isinstance(a, str) or isinstance(v, str):
             acc[k] = a if (isinstance(a, str) and a) else v
             continue
 
-        # fallback: prefer non-null
+        # fallback prefer non-null
         if a is None and v is not None:
             acc[k] = v
     return acc
 
 def _extract_focus_contexts(full_text: str) -> List[str]:
-    """
-    Build small, high-signal contexts without regex parsing of values:
-    - abstract block (first ~5k chars or until 'Introduction')
-    - figure/table captions
-    - lines containing UK/United Kingdom/England/Scotland/Wales/Ireland keywords
-    """
     lower = full_text.lower()
     cut = lower.find("introduction")
     abstract = full_text[:max(3000, min(len(full_text),
-                                        5000 if cut == -1 else cut))]
+                                5000 if cut == -1 else cut))]
 
     lines = [ln.strip() for ln in full_text.splitlines() if ln.strip()]
-    caption_like: List[str] = []
+    caption_like = []
     for ln in lines:
         head = ln[:12].lower()
         if head.startswith("figure") or head.startswith("table"):
@@ -162,15 +154,8 @@ DEFAULT_TEMPLATE_VERBATIM = """
   "study_acronym": "string",
   "study_types": ["string"],
   "cohort_type": "string",
-  "website": "string",
-  "start_year": "integer",
-  "end_year": "integer",
-  "contact_email": "string",
   "n_included": "integer",
-  "countries": ["verbatim-string"],
-  "main_medical_condition": "string",
-  "other_inclusion_criteria": ["string"],
-  "population_age_group": "string"
+  "countries": ["verbatim-string"]
 }
 """
 
@@ -181,35 +166,22 @@ DEFAULT_TEMPLATE_NORMALIZED = """
   "study_acronym": "string",
   "study_types": ["string"],
   "cohort_type": "string",
-  "website": "string",
-  "start_year": "integer",
-  "end_year": "integer",
-  "contact_email": "string",
   "n_included": "integer",
-  "countries": ["string"],
-  "main_medical_condition": "string",
-  "other_inclusion_criteria": ["string"],
-  "population_age_group": "string"
+  "countries": ["string"]
 }
 """
 
 DEFAULT_INSTRUCTIONS = (
-    "Extract pid, study_name, study_acronym, study_types, cohort_type, website, "
-    "start_year, end_year, contact_email, n_included, countries, "
-    "main_medical_condition, other_inclusion_criteria, and population_age_group. "
-    "Countries must be exact names for the included participants only; deduplicate. "
-    "main_medical_condition is the primary disease studied. "
-    "other_inclusion_criteria are key participant requirements. "
-    "population_age_group is the age range of participants."
+    "Extract pid, study_name, study_acronym, study_types, cohort_type, "
+    "n_included, countries. Countries must be EXACT VERBATIM names from the "
+    "included participants only. Deduplicate. Exclude affiliations."
 )
 
 NORMALIZE_SUFFIX = (
-    "If countries are referred to by abbreviations (e.g., UK), expand to the canonical "
-    "country name (e.g., United Kingdom). If only a region/city is given, infer the "
-    "country where reasonable and return the country."
+    "If abbreviations like UK occur, normalize to the full country name."
 )
 
-# ---------- Single public function ----------
+# ---------- Public function ----------
 
 def extract_fields(
     client: OpenAICompatibleClient,
@@ -222,110 +194,87 @@ def extract_fields(
     max_tokens: int,
     chunk_chars: int = 40000,
 ) -> Dict[str, Any]:
-    """
-    Single generic extractor with robust fallbacks:
-    - Full text, VERBATIM template
-    - Focus windows (abstract/captions), VERBATIM
-    - Full text, NORMALIZED
-    - Focus windows, NORMALIZED
-    - Paragraph-aware chunk merge
-    """
 
     tpl_verbatim = (template_json or DEFAULT_TEMPLATE_VERBATIM)
     tpl_norm     = DEFAULT_TEMPLATE_NORMALIZED
     instr = (instructions or DEFAULT_INSTRUCTIONS)
 
     system_msg = (
-        "You are NuExtract: extract structured data as JSON only. "
-        "Output MUST be a single JSON object, no prose, no markdown fences. "
-        "If a field is not supported by the context, return null or []. "
-        "Use only double quotes, valid UTF-8, and no trailing commas."
+        "You are NuExtract: output MUST be a single JSON object. "
+        "No markdown, no text, only JSON. If unknown, use null or []."
     )
 
     def _run_once(text: str, tpl: str, extra_instr: str = "") -> Dict[str, Any]:
         prompt = _build_nuextract_prompt(
-            tpl,
-            (instr + ("\n" + extra_instr if extra_instr else "")),
-            text,
+            tpl, (instr + ("\n" + extra_instr if extra_instr else "")), text
         )
         messages = [
             {"role": "system", "content": system_msg},
             {"role": "user", "content": prompt},
         ]
         raw = _call_llm_minimal(
-            client,
-            messages,
-            temperature,
-            max_tokens,
+            client, messages, temperature, max_tokens,
             GRAMMAR_JSON_INT_OR_NULL if use_grammar else None,
         )
         return _json_load_stripping_fences(raw)
 
-    # ---- Pass 1: Full text, VERBATIM ----
+    # Pass 1: full
     data: Dict[str, Any] = {}
     try:
         data = _run_once(paper_text[:200000], tpl_verbatim)
-    except Exception as e:
-        log.debug("Full verbatim failed: %s", e)
+    except Exception:
         data = {}
 
-    if isinstance(data, dict) and data.get("countries"):
+    if data.get("countries"):
         return data
 
-    # ---- Pass 2: Focus windows (abstract + captions), VERBATIM ----
-    windows = _extract_focus_contexts(paper_text)
-    for w in windows:
+    # Pass 2: windows
+    for w in _extract_focus_contexts(paper_text):
         try:
             d2 = _run_once(w, tpl_verbatim)
-            if isinstance(d2, dict):
-                data = _merge_json_results(data, d2)
-        except Exception as e:
-            log.debug("Window verbatim failed: %s", e)
+            data = _merge_json_results(data, d2)
+        except Exception:
+            pass
 
-    if isinstance(data, dict) and data.get("countries"):
+    if data.get("countries"):
         return data
 
-    # ---- Pass 3: Full text, NORMALIZED ----
+    # Pass 3: normalized
     try:
         d3 = _run_once(paper_text[:200000], tpl_norm, NORMALIZE_SUFFIX)
-        if isinstance(d3, dict):
-            data = _merge_json_results(data, d3)
-    except Exception as e:
-        log.debug("Full normalized failed: %s", e)
+        data = _merge_json_results(data, d3)
+    except Exception:
+        pass
 
-    if isinstance(data, dict) and data.get("countries"):
+    if data.get("countries"):
         return data
 
-    # ---- Pass 4: Focus windows, NORMALIZED ----
-    for w in windows:
+    # Pass 4: windows normalized
+    for w in _extract_focus_contexts(paper_text):
         try:
             d4 = _run_once(w, tpl_norm, NORMALIZE_SUFFIX)
-            if isinstance(d4, dict):
-                data = _merge_json_results(data, d4)
-        except Exception as e:
-            log.debug("Window normalized failed: %s", e)
+            data = _merge_json_results(data, d4)
+        except Exception:
+            pass
 
-    if isinstance(data, dict) and data.get("countries"):
+    if data.get("countries"):
         return data
 
-    # ---- Pass 5: Paragraph-aware chunk merge (VERBATIM again) ----
-    merged: Dict[str, Any] = data if isinstance(data, dict) else {}
+    # Pass 5: chunk merge
+    merged = data
     for part in _chunk_text(paper_text, max_chars=chunk_chars):
         try:
             cur = _run_once(part, tpl_verbatim)
-            if isinstance(cur, dict):
-                merged = _merge_json_results(merged, cur)
-        except Exception as ex:
-            log.debug("Chunk verbatim failed: %s", ex)
+            merged = _merge_json_results(merged, cur)
+        except Exception:
+            pass
 
-    # If still empty, one last chunked try with NORMALIZED
     if not merged.get("countries"):
         for part in _chunk_text(paper_text, max_chars=chunk_chars):
             try:
                 cur = _run_once(part, tpl_norm, NORMALIZE_SUFFIX)
-                if isinstance(cur, dict):
-                    merged = _merge_json_results(merged, cur)
-            except Exception as ex:
-                log.debug("Chunk normalized failed: %s", ex)
+                merged = _merge_json_results(merged, cur)
+            except Exception:
+                pass
 
     return merged

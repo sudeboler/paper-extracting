@@ -167,10 +167,7 @@ DEFAULT_TEMPLATE_VERBATIM = """
   "end_year": "integer",
   "contact_email": "string",
   "n_included": "integer",
-  "countries": ["verbatim-string"],
-  "main_medical_condition": "string",
-  "other_inclusion_criteria": ["string"],
-  "population_age_group": "string"
+  "countries": ["verbatim-string"]
 }
 """
 
@@ -186,21 +183,15 @@ DEFAULT_TEMPLATE_NORMALIZED = """
   "end_year": "integer",
   "contact_email": "string",
   "n_included": "integer",
-  "countries": ["string"],
-  "main_medical_condition": "string",
-  "other_inclusion_criteria": ["string"],
-  "population_age_group": "string"
+  "countries": ["string"]
 }
 """
 
 DEFAULT_INSTRUCTIONS = (
     "Extract pid, study_name, study_acronym, study_types, cohort_type, website, "
-    "start_year, end_year, contact_email, n_included, countries, "
-    "main_medical_condition, other_inclusion_criteria, and population_age_group. "
-    "Countries must be exact names for the included participants only; deduplicate. "
-    "main_medical_condition is the primary disease studied. "
-    "other_inclusion_criteria are key participant requirements. "
-    "population_age_group is the age range of participants."
+    "start_year, end_year, contact_email, n_included, countries. "
+    "Countries must be exact names for the included participants only; deduplicate; "
+    "exclude affiliations and non-contributing sites."
 )
 
 NORMALIZE_SUFFIX = (

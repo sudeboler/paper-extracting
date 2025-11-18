@@ -167,10 +167,7 @@ DEFAULT_TEMPLATE_VERBATIM = """
   "end_year": "integer",
   "contact_email": "string",
   "n_included": "integer",
-  "countries": ["verbatim-string"],
-  "main_medical_condition": "string",
-  "other_inclusion_criteria": ["string"],
-  "population_age_group": "string"
+  "countries": ["verbatim-string"]
 }
 """
 
@@ -186,21 +183,15 @@ DEFAULT_TEMPLATE_NORMALIZED = """
   "end_year": "integer",
   "contact_email": "string",
   "n_included": "integer",
-  "countries": ["string"],
-  "main_medical_condition": "string",
-  "other_inclusion_criteria": ["string"],
-  "population_age_group": "string"
+  "countries": ["string"]
 }
 """
 
 DEFAULT_INSTRUCTIONS = (
     "Extract pid, study_name, study_acronym, study_types, cohort_type, website, "
-    "start_year, end_year, contact_email, n_included, countries, "
-    "main_medical_condition, other_inclusion_criteria, and population_age_group. "
-    "Countries must be exact names for the included participants only; deduplicate. "
-    "main_medical_condition is the primary disease studied. "
-    "other_inclusion_criteria are key participant requirements. "
-    "population_age_group is the age range of participants."
+    "start_year, end_year, contact_email, n_included, countries. "
+    "Countries must be exact names for the included participants only; deduplicate; "
+    "exclude affiliations and non-contributing sites."
 )
 
 NORMALIZE_SUFFIX = (
@@ -299,33 +290,4 @@ def extract_fields(
     # ---- Pass 4: Focus windows, NORMALIZED ----
     for w in windows:
         try:
-            d4 = _run_once(w, tpl_norm, NORMALIZE_SUFFIX)
-            if isinstance(d4, dict):
-                data = _merge_json_results(data, d4)
-        except Exception as e:
-            log.debug("Window normalized failed: %s", e)
-
-    if isinstance(data, dict) and data.get("countries"):
-        return data
-
-    # ---- Pass 5: Paragraph-aware chunk merge (VERBATIM again) ----
-    merged: Dict[str, Any] = data if isinstance(data, dict) else {}
-    for part in _chunk_text(paper_text, max_chars=chunk_chars):
-        try:
-            cur = _run_once(part, tpl_verbatim)
-            if isinstance(cur, dict):
-                merged = _merge_json_results(merged, cur)
-        except Exception as ex:
-            log.debug("Chunk verbatim failed: %s", ex)
-
-    # If still empty, one last chunked try with NORMALIZED
-    if not merged.get("countries"):
-        for part in _chunk_text(paper_text, max_chars=chunk_chars):
-            try:
-                cur = _run_once(part, tpl_norm, NORMALIZE_SUFFIX)
-                if isinstance(cur, dict):
-                    merged = _merge_json_results(merged, cur)
-            except Exception as ex:
-                log.debug("Chunk normalized failed: %s", ex)
-
-    return merged
+            d4 = _run_once(w, tp

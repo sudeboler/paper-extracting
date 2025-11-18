@@ -7,7 +7,7 @@ max_tokens = 256
 temperature = 0.0
 
 [pdf]
-path = "data/OncoLifeS.pdf"
+path = "data/dys064.pdf"
 max_pages = 40
 
 [task]
@@ -82,24 +82,6 @@ Extract the following fields from the paper:
   Example: if the study describes the OncoLifeS data-biobank embedded in the University Medical Center Groningen, the Netherlands,
   then countries = ["the Netherlands"].
   Only return an empty list if you cannot identify any country from either participants or the study setting.
-
-- main_medical_condition:
-  The primary disease, disorder, or health condition the study is focused on (e.g., "colorectal cancer", "type 2 diabetes").
-  If the study is on healthy volunteers or a general population without a specific condition, return null.
-
-- other_inclusion_criteria:
-  A list of key inclusion criteria for participants, beyond the main medical condition or age.
-  Extract specific requirements like "must be a non-smoker" or "no prior history of cancer".
-  Return an empty list if none are mentioned.
-
-- population_age_group:
-  The age range of the study participants. Extract this as a descriptive string (e.g., "18-65 years", "over 50", "pediatric").
-  If not specified, return null.
-
-
-
-
 """
-
 [logging]
 level = "INFO"
