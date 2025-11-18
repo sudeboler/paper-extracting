@@ -23,10 +23,7 @@ template_json = """
   "end_year": "integer",
   "contact_email": "string",
   "n_included": "integer",
-  "countries": ["verbatim-string"],
-  "main_medical_condition": "string",
-  "other_inclusion_criteria": ["string"],
-  "population_age_group": "string"
+  "countries": ["verbatim-string"]
 }
 """
 
