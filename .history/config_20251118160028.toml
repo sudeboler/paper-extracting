@@ -96,9 +96,8 @@ Extract the following fields from the paper:
   Return an empty list if none are mentioned.
 
 - population_age_group:
-  The age range of participants. For studies following participants over time, extract the full period.
-  Example: "followed children up to 18 years" -> "0-18 years" or "birth to 18 years".
-  For others, extract the stated range (e.g., "18-65 years", "over 50"). If none, return null.
+  The age range of the study participants. Extract this as a descriptive string (e.g., "18-65 years", "over 50", "pediatric").
+  If not specified, return null.
 """
 
 [logging]
