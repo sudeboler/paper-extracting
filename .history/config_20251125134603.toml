@@ -1,0 +1,110 @@
+[llm]
+base_url = "http://127.0.0.1:8080/v1"
+model    = "numind/NuExtract-2.0-8B"
+api_key  = "sk-local"
+use_grammar = false
+max_tokens = 1024
+temperature = 0.0
+
+[pdf]
+path = "data/alspac.pdf"
+max_pages = 40
+
+# ---------- PASS A: Structuur & Metadata ----------
+[task_main]
+template_json = """
+{
+  "pid": "string",
+  "study_name": "string",
+  "study_acronym": "string",
+  "study_types": ["string"],
+  "cohort_type": "string",
+  "website": "string",
+  "start_year": "integer",
+  "end_year": "integer",
+  "contact_email": "string",
+  "n_included": "integer",
+  "countries": ["verbatim-string"],
+  "regions": ["verbatim-string"],
+  "population_age_group": "string"
+}
+"""
+
+instructions = """
+Extract the following fields from the paper.
+
+- pid: 
+  Find the DOI string (usually starts with "10.").
+  Look closely in the **header** or **footer** of the first page.
+  Example: "10.1093/ije/dys064".
+  Return the exact DOI.
+
+- study_name: Name of the cohort (e.g. "Avon Longitudinal Study of Parents and Children").
+- study_acronym: Explicit acronym (e.g. "ALSPAC").
+- study_types: Labels like "Biobank", "Cohort study", "Prospective study".
+- cohort_type: E.g. "birth cohort", "population-based cohort".
+- website: Public URL for the study.
+- contact_email: Contact email address.
+- n_included: The total number of participants enrolled (e.g. 15247).
+
+- start_year: The year when the study/recruitment began (e.g. 1990).
+
+- end_year: 
+  The year the **entire study** ended.
+  CRITICAL RULE:
+  - If the study is a longitudinal cohort with **ongoing follow-up** (e.g. "intention is for follow-up to be lifelong"), return null.
+  - Do NOT return the year recruitment stopped (e.g. 1992) if the study itself continues.
+  - Only return a year if the paper says the study has permanently closed/finished.
+
+- countries:
+  Country where recruitment took place.
+  Deduplicate entries (e.g. do not return ["UK", "United Kingdom"], just ["United Kingdom"]).
+
+- regions:
+  Specific region (e.g. "Bristol", "South West England").
+
+- population_age_group:
+  Target age at inclusion (e.g. "Pregnant women", "Birth", "0-18 years").
+"""
+
+# ---------- PASS B: Criteria & Design ----------
+[task_criteria]
+template_json = """
+{
+  "inclusion_criteria": ["string"],
+  "other_inclusion_criteria": ["string"],
+  "exclusion_criteria": ["string"],
+  "other_exclusion_criteria": ["string"],
+  "clinical_study_types": ["string"]
+}
+"""
+
+instructions = """
+Extract ONLY the following fields. Return short, general phrases.
+
+- inclusion_criteria:
+  The core participant groups.
+  **STRICT CLEANUP RULES:**
+  1. Remove ALL specific years (e.g. "1990-1992" -> REMOVE).
+  2. Remove ALL specific counts (e.g. "14541" -> REMOVE).
+  3. Remove specific city names (e.g. "Bristol" -> REMOVE).
+  
+  Example input: "pregnant women recruited in Bristol area during 1990-92"
+  Example output: "pregnant women"
+
+- other_inclusion_criteria:
+  Procedural requirements (e.g. "informed consent", "living in catchment area").
+
+- exclusion_criteria:
+  Specific medical conditions that disqualify a participant.
+  If none are explicitly listed as medical exclusions, return [].
+
+- other_exclusion_criteria:
+  Non-medical reasons for exclusion (e.g. "moving out of area").
+
+- clinical_study_types:
+  Description of the design (e.g. "prospective population-based birth cohort").
+"""
+
+[logging]
+level = "INFO"
