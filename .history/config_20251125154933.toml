@@ -7,7 +7,7 @@ max_tokens = 1024
 temperature = 0.0
 
 [pdf]
-path = "data/oncolifes.pdf"
+path = "data/dys064.pdf"
 max_pages = 40
 
 # ---------- PASS A: Structuur & Metadata ----------
@@ -136,6 +136,8 @@ Extract study design details.
   Copy the "Aim" or "Objective" sentence verbatim from the Abstract.
 """
 
+
+# ---------- PASS D: Population & Samples ----------
 [task_population]
 template_json = """
 {
@@ -159,143 +161,59 @@ template_json = """
 """
 
 instructions = """
-Extract population and sample details. If a specific value is not mentioned, return null.
+Extract population and sample details.
 
 - number_of_participants_with_samples:
-  Specific number of individuals with **biological samples** (DNA, blood, tissue).
-  Look for "DNA on ... children" or "Biobank samples".
-  Do NOT use the total recruitment number.
+  Number of individuals with stored biological samples (if different from total n).
 
 - underlying_population:
   Source population (e.g. "General population", "Hospital patients").
 
 - population_of_interest:
-  Target group (e.g. "Pregnant women", "Cancer patients", "Children").
+  Target group (e.g. "Pregnant women", "Cancer patients").
 
 - population_of_interest_other:
-  Specifics if "Other". If none, return null.
+  Specify if "Other".
 
 - part_of_networks:
-  Consortia/networks this study belongs to (e.g. "ELSPAC").
+  Consortia/networks this study belongs to.
 
 - population_entry:
   Triggers for registration (e.g. "Birth", "Diagnosis", "Consent").
 
 - population_entry_other:
-  If none, return null. Do NOT output the string "Other".
+  Other entry triggers.
 
 - population_exit:
   Triggers for de-registration (e.g. "Death", "Withdrawal").
 
 - population_exit_other:
-  If none, return null. Do NOT output the string "Other".
+  Other exit triggers.
 
 - population_disease:
-  The focus disease category.
-  CRITICAL RULE: If the study covers general health, development, or multiple diverse conditions (like a birth cohort), return ["General Health"]. 
-  Only return "Oncology" if the study is specifically about cancer patients.
+  Broad disease category (e.g. "Oncology").
 
 - population_oncology_topology:
-  (Cancer only) Organ/Site. If not a cancer study, return [].
+  (Cancer) Organ/Site (e.g. "Breast", "Lung").
 
 - population_oncology_morphology:
-  (Cancer only) Histology. If not a cancer study, return [].
+  (Cancer) Histology (e.g. "Carcinoma").
 
 - population_coverage:
-  % covered or denominator description.
+  % of target population covered or denominator description.
 
 - population_not_covered:
-  Who is missed/excluded?
+  Who is missed/excluded from the catchment area?
 
 - age_min:
-  Minimum age (integer). "Birth" = 0.
+  Minimum age of participants (integer).
+  - "Adults (>18)" -> 18
+  - "Birth cohort" -> 0
+  - "Children (0-18)" -> 0
 
 - age_max:
-  Maximum age (integer) described in this paper.
-"""
-
-# ---------- PASS E: Access, Governance & Consent ----------
-[task_access]
-template_json = """
-{
-  "informed_consent_type": "string",
-  "informed_consent_required": "string",
-  "informed_consent_other": "string",
-  "access_rights": "string",
-  "data_access_conditions": ["string"],
-  "data_use_conditions": ["string"],
-  "data_access_conditions_description": "string",
-  "data_access_fee": "boolean",
-  "access_identifiable_data": "string",
-  "access_identifiable_data_route": "string",
-  "access_subject_details": "boolean",
-  "access_subject_details_route": "string",
-  "access_third_party": "boolean",
-  "access_third_party_conditions": "string",
-  "access_non_eu": "boolean",
-  "access_non_eu_conditions": "string"
-}
-"""
-
-instructions = """
-Extract data access, governance, and informed consent details.
-
-- informed_consent_type:
-  What type of consent was given?
-  Examples: "Opt-in", "Opt-out", "Dynamic consent", "Broad consent".
-
-- informed_consent_required:
-  Is informed consent required for the use of data for research purposes?
-  Return "Yes" or "No".
-
-- informed_consent_other:
-  Describe conditions if specific consent is required (e.g. for specific sub-studies).
-
-- access_rights:
-  Indicate accessibility level.
-  Choose from: "Publicly accessible", "Restricted access" (requires application), "Non-public".
-  (Most biobanks are "Restricted access").
-
-- data_access_conditions:
-  Keywords for access terms.
-  Examples: "Collaboration required", "Scientific review", "Ethics approval required".
-
-- data_use_conditions:
-  Keywords for use terms.
-  Examples: "Research use only", "Non-commercial use", "Specific project use".
-
-- data_access_conditions_description:
-  Short description of the application process or access policy.
-
-- data_access_fee:
-  Does a fee apply to gain access (e.g. cost recovery, administrative fee)?
-  Return true or false.
-
-- access_identifiable_data:
-  Can identifiable data (e.g. names) be accessed?
-  Return "Yes", "No", or "Only pseudonymized".
-
-- access_identifiable_data_route:
-  If yes, what is the route/permission required?
-
-- access_subject_details:
-  Can individual patients be contacted for follow-up/new studies?
-  Return true or false.
-
-- access_subject_details_route:
-  If yes, how is contact established?
-
-- access_third_party:
-  Can data be accessed by third parties (e.g. external researchers, industry)?
-  Return true or false.
-
-- access_third_party_conditions:
-  Conditions for third-party access (e.g. "Collaboration agreement").
-
-- access_non_eu:
-  Can data be accessed by non-EU/EEA institutions?
-  Return true or false.
-
-- access_non_eu_conditions:
-  Conditions for non-EU access.
+  Maximum age of participants (integer).
+  - "0-18 years" -> 18
+  - "Adults (no upper limit)" -> null
+  - "Elderly (>65)" -> null (unless a cap is stated like 90)
 """

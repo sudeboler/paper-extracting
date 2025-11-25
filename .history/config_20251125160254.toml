@@ -7,7 +7,7 @@ max_tokens = 1024
 temperature = 0.0
 
 [pdf]
-path = "data/oncolifes.pdf"
+path = "data/dys064.pdf"
 max_pages = 40
 
 # ---------- PASS A: Structuur & Metadata ----------
@@ -136,6 +136,7 @@ Extract study design details.
   Copy the "Aim" or "Objective" sentence verbatim from the Abstract.
 """
 
+
 [task_population]
 template_json = """
 {
@@ -212,90 +213,4 @@ Extract population and sample details. If a specific value is not mentioned, ret
 
 - age_max:
   Maximum age (integer) described in this paper.
-"""
-
-# ---------- PASS E: Access, Governance & Consent ----------
-[task_access]
-template_json = """
-{
-  "informed_consent_type": "string",
-  "informed_consent_required": "string",
-  "informed_consent_other": "string",
-  "access_rights": "string",
-  "data_access_conditions": ["string"],
-  "data_use_conditions": ["string"],
-  "data_access_conditions_description": "string",
-  "data_access_fee": "boolean",
-  "access_identifiable_data": "string",
-  "access_identifiable_data_route": "string",
-  "access_subject_details": "boolean",
-  "access_subject_details_route": "string",
-  "access_third_party": "boolean",
-  "access_third_party_conditions": "string",
-  "access_non_eu": "boolean",
-  "access_non_eu_conditions": "string"
-}
-"""
-
-instructions = """
-Extract data access, governance, and informed consent details.
-
-- informed_consent_type:
-  What type of consent was given?
-  Examples: "Opt-in", "Opt-out", "Dynamic consent", "Broad consent".
-
-- informed_consent_required:
-  Is informed consent required for the use of data for research purposes?
-  Return "Yes" or "No".
-
-- informed_consent_other:
-  Describe conditions if specific consent is required (e.g. for specific sub-studies).
-
-- access_rights:
-  Indicate accessibility level.
-  Choose from: "Publicly accessible", "Restricted access" (requires application), "Non-public".
-  (Most biobanks are "Restricted access").
-
-- data_access_conditions:
-  Keywords for access terms.
-  Examples: "Collaboration required", "Scientific review", "Ethics approval required".
-
-- data_use_conditions:
-  Keywords for use terms.
-  Examples: "Research use only", "Non-commercial use", "Specific project use".
-
-- data_access_conditions_description:
-  Short description of the application process or access policy.
-
-- data_access_fee:
-  Does a fee apply to gain access (e.g. cost recovery, administrative fee)?
-  Return true or false.
-
-- access_identifiable_data:
-  Can identifiable data (e.g. names) be accessed?
-  Return "Yes", "No", or "Only pseudonymized".
-
-- access_identifiable_data_route:
-  If yes, what is the route/permission required?
-
-- access_subject_details:
-  Can individual patients be contacted for follow-up/new studies?
-  Return true or false.
-
-- access_subject_details_route:
-  If yes, how is contact established?
-
-- access_third_party:
-  Can data be accessed by third parties (e.g. external researchers, industry)?
-  Return true or false.
-
-- access_third_party_conditions:
-  Conditions for third-party access (e.g. "Collaboration agreement").
-
-- access_non_eu:
-  Can data be accessed by non-EU/EEA institutions?
-  Return true or false.
-
-- access_non_eu_conditions:
-  Conditions for non-EU access.
 """
