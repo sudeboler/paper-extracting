@@ -7,7 +7,7 @@ max_tokens = 1024
 temperature = 0.0
 
 [pdf]
-path = "data/coevorden.pdf"
+path = "data/oncolifes.pdf"
 max_pages = 40
 
 # ---------- PASS A: Structuur & Metadata ----------
@@ -135,7 +135,6 @@ Extract study design details.
 - description:
   Copy the "Aim" or "Objective" sentence verbatim from the Abstract.
 """
-# ---------- PASS D: Population & Samples (Final Polish) ----------
 [task_population]
 template_json = """
 {
@@ -159,60 +158,61 @@ template_json = """
 """
 
 instructions = """
-Extract population details.
+Extract population and sample details.
 
 - number_of_participants_with_samples:
-  Count of individuals with stored samples. If the paper implies not everyone has samples (e.g. "available for 80%"), return null.
+  Number of individuals with stored biological samples. 
+  If the paper only gives a total N enrolled but admits not everyone gave samples (e.g. "80% of patients"), return null. Do NOT copy the total N.
 
 - underlying_population:
-  "Hospital patients" (if clinical) or "General population" (if registry/community).
+  Source population.
+  CRITICAL RULE: If the study takes place in a hospital/clinic (UMC, Clinic), return "Clinical population" or "Hospital patients". 
+  Only return "General population" if people were recruited from the municipality/city registry.
 
 - population_of_interest:
   Target group (e.g. "Cancer patients").
 
 - population_of_interest_other:
-  Specifics. If none, return null. **NEVER** return the string "Other".
+  Specify if "Other".
 
 - part_of_networks:
-  Consortia/networks (e.g. "EURACAN").
+  Consortia/networks (e.g. "EURACAN", "BBMRI").
 
 - population_entry:
-  Triggers (e.g. "Diagnosis").
+  Triggers for registration (e.g. "Diagnosis", "Referral", "Birth").
 
 - population_entry_other:
-  If none, return null. **NEVER** return the string "Other".
+  Other entry triggers.
 
 - population_exit:
-  Triggers (e.g. "Death", "Withdrawal").
+  Triggers for de-registration (e.g. "Death", "Withdrawal").
 
 - population_exit_other:
-  If none, return null. **NEVER** return the string "Other".
+  Other exit triggers.
 
 - population_disease:
-  "Oncology", "Cardiovascular", etc.
+  Broad disease category (e.g. "Oncology", "General Health").
 
 - population_oncology_topology:
-  Organ sites (e.g. "Lung").
+  (Cancer) Organ/Site (e.g. "Head and neck", "Lung").
 
 - population_oncology_morphology:
-  Histology (e.g. "Carcinoma").
+  (Cancer) Histology (e.g. "Carcinoma").
 
 - population_coverage:
-  Participation rate or coverage description.
+  % of target population covered (e.g. "70% participation rate").
 
 - population_not_covered:
-  Description of exclusions/refusals.
+  Who is missed? (e.g. "Refusers").
 
 - age_min:
-  Minimum age integer.
+  Minimum age integer (e.g. 18).
 
 - age_max:
-  Maximum age integer. 
-  CRITICAL: If no upper limit is explicitly stated, return null. 
-  Do NOT invent "100" or "99".
+  Maximum age integer. If "older than 70" is mentioned but no upper limit, return null. Do not invent 100.
 """
 
-# ---------- PASS E: Access & Governance (Final Polish) ----------
+# ---------- PASS E: Access, Governance & Consent ----------
 [task_access]
 template_json = """
 {
@@ -236,58 +236,64 @@ template_json = """
 """
 
 instructions = """
-Extract access details.
+Extract data access, governance, and informed consent details.
 
 - informed_consent_type:
-  "Written", "Opt-out", "Broad".
+  What type of consent was given?
+  Examples: "Opt-in", "Opt-out", "Dynamic consent", "Broad consent".
 
 - informed_consent_required:
-  "Yes" or "No".
+  Is informed consent required for the use of data for research purposes?
+  Return "Yes" or "No".
 
 - informed_consent_other:
-  Details.
+  Describe conditions if specific consent is required (e.g. for specific sub-studies).
 
 - access_rights:
-  CRITICAL DEFINITIONS:
-  - "Publicly accessible": Anyone can download data NOW without asking.
-  - "Restricted access": Requires application, board approval, or registration.
-  - "Non-public": No access allowed.
+  Indicate accessibility level.
+  Choose from: "Publicly accessible", "Restricted access" (requires application), "Non-public".
+  (Most biobanks are "Restricted access").
 
 - data_access_conditions:
-  Keywords (e.g. "Research proposal").
+  Keywords for access terms.
+  Examples: "Collaboration required", "Scientific review", "Ethics approval required".
 
 - data_use_conditions:
-  Keywords (e.g. "Research use only").
+  Keywords for use terms.
+  Examples: "Research use only", "Non-commercial use", "Specific project use".
 
 - data_access_conditions_description:
-  Short description.
+  Short description of the application process or access policy.
 
 - data_access_fee:
-  Does a fee apply (cover costs)? Return true/false.
+  Does a fee apply to gain access (e.g. cost recovery, administrative fee)?
+  Return true or false.
 
 - access_identifiable_data:
-  Can external researchers see names/IDs?
-  CRITICAL: If data is "anonymized", "coded" or handled by a "trusted third party", return "No" (or "Pseudonymized"). 
-  Only return "Yes" if raw names are shared.
+  Can identifiable data (e.g. names) be accessed?
+  Return "Yes", "No", or "Only pseudonymized".
 
 - access_identifiable_data_route:
-  Route if yes.
+  If yes, what is the route/permission required?
 
 - access_subject_details:
-  Can patients be contacted? Return true/false.
+  Can individual patients be contacted for follow-up/new studies?
+  Return true or false.
 
 - access_subject_details_route:
-  How (e.g. via trusted third party).
+  If yes, how is contact established?
 
 - access_third_party:
-  Can external researchers access data? Return true/false.
+  Can data be accessed by third parties (e.g. external researchers, industry)?
+  Return true or false.
 
 - access_third_party_conditions:
-  Conditions.
+  Conditions for third-party access (e.g. "Collaboration agreement").
 
 - access_non_eu:
-  Can non-EU access?
+  Can data be accessed by non-EU/EEA institutions?
+  Return true or false.
 
 - access_non_eu_conditions:
-  Conditions.
+  Conditions for non-EU access.
 """
