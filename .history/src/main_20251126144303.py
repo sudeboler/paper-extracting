@@ -37,7 +37,7 @@ def cli():
         "-p", "--passes", 
         nargs="+", 
         default=["all"],
-        help="Specify passes: A, B, C, D, E, F, G, H, I, J, K. Default: 'all'"
+        help="Specify passes: A, B, C, D, E, F, G, H. Default: 'all'"
     )
     args = parser.parse_args()
     selected_passes = [p.upper() for p in args.passes]
@@ -74,10 +74,10 @@ def cli():
             instructions=task_cfg.get("instructions"),
             use_grammar=bool(llm_cfg.get("use_grammar", False)),
             temperature=float(llm_cfg.get("temperature", 0.0)),
-            max_tokens=int(llm_cfg.get("max_tokens", 2048)),
+            max_tokens=int(llm_cfg.get("max_tokens", 2048)), # 2048 is genoeg voor deze pass
         )
 
-    # De complete lijst met 11 taken
+    # De complete lijst met 8 taken
     all_tasks = [
         ("A", "Pass A (Main)", "task_main"),
         ("B", "Pass B (Criteria)", "task_criteria"),
@@ -86,10 +86,7 @@ def cli():
         ("E", "Pass E (Access)", "task_access"),
         ("F", "Pass F (Contributors)", "task_contributors"),
         ("G", "Pass G (Data Model)", "task_datamodel"),
-        ("H", "Pass H (Biobank Updates)", "task_biobank_updates"),
-        ("I", "Pass I (Quality & SOPs)", "task_quality"),
-        ("J", "Pass J (Linkage & Specs)", "task_linkage_specs"),
-        ("K", "Pass K (Triggers & Structure)", "task_triggers_subpops"), # <--- NIEUW
+        ("H", "Pass H (Biobank Updates)", "task_biobank_updates"), # <--- NIEUW
     ]
 
     merged_results = {}

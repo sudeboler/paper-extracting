@@ -362,7 +362,7 @@ Extract contributor and network details mapping to the requested schema.
   Names of larger consortia or networks this resource belongs to (e.g. "BBMRI", "ELSPAC").
 """
 
-# ---------- PASS G: Data Model (Final Production Ready) ----------
+# ---------- PASS G: Data Model (Zero Tolerance) ----------
 [task_datamodel]
 template_json = """
 {
@@ -391,21 +391,19 @@ template_json = """
 instructions = """
 Extract data standards, vocabularies, and datasets.
 
-**GUIDELINES:**
-1. **Datasets:** Include external databases ONLY if the text says they were **linked**, **retrieved**, or **used**.
-2. **Prompt Leakage:** Do NOT output examples from this prompt (like "Pensions Data") unless they are in the text.
-3. **Vocabularies:** Do not guess. Use strict extraction.
+**STRICT RULES:**
+1. **Vocabularies:** If the paper does not explicitly write the acronym (e.g., "ATC", "SNOMED", "ICD"), you must return **null**. Do NOT infer the standard from the context (e.g. do NOT assume "Pharmacy data" = "ATC").
+2. **Datasets:** Do NOT list other biobanks mentioned in the Discussion section (e.g. ignore "BOSOM", "Maastricht UMC", "Radboud"). Only list datasets actually generated or linked by THIS study.
 
 - datasets_resource:
-  Names of administrative databases, registries, or external cohorts linked to this study.
-  **Instruction:** Look for capitalized names of registries or databases mentioned in the context of "record linkage" or "data retrieval".
-  **Exclude:** Comparison studies in the Discussion.
+  Names of datasets or registries linked to this study.
+  **CRITICAL:** Exclude biobanks mentioned only for comparison (e.g. "BOSOM", "Parelsnoer").
 
 - datasets_name:
   (Same as above).
 
 - samplesets_resource:
-  Names of sample collections physically held by THIS study.
+  Names of biobanks physically held by THIS study.
 
 - samplesets_name:
   (Same as above).
@@ -417,294 +415,44 @@ Extract data standards, vocabularies, and datasets.
   Sources of Real World Data (e.g. "EHR", "Linkage").
 
 - quality_of_life_measures:
-  Specific questionnaires named in the text.
+  Questionnaires named in the text.
 
 - care_setting_description:
-  Setting.
+  Setting (e.g. "Tertiary referral center").
 
 - disease_details:
-  Specific diseases studied. (Exclude lifestyle/diet).
+  Specific diseases studied.
 
-# --- VOCABULARIES (Strict Extraction) ---
+# --- CODING SYSTEMS (VERBATIM MATCH ONLY) ---
+# Only extract if the acronym is literally in the text.
 
 - diagnosis_medical_event_vocabulary:
-  Coding system for diagnoses (e.g. ICD, ICPC, SNOMED).
+  Look for: "ICD", "ICD-O", "ICPC", "SNOMED". Return null if not found.
 
 - cause_of_death_vocabulary:
-  Coding system for mortality.
+  Look for: "ICD". Return null if not found.
 
 - medicinal_product_vocabulary:
-  Coding system for medication.
+  Look for: "ATC", "RxNorm". Return null if not found.
 
 - prescriptions_vocabulary:
-  Coding system for prescriptions.
+  Coding system for prescriptions. Return null if not found.
 
 - dispensings_vocabulary:
-  Coding system for dispensings.
+  Coding system for dispensings. Return null if not found.
 
 - procedures_vocabulary:
-  Coding system for medical procedures.
+  Look for: "OPCS", "CPT". Return null if not found.
 
 - indication_vocabulary:
   Coding system for indications.
 
 - genetic_data_vocabulary:
-  Standards used for reporting genetic data.
+  Standards for genetics.
 
 - biomarker_data_vocabulary:
-  Standards used for biomarkers.
+  Standards for biomarkers.
 
 - data_dictionary_available:
   Is a data dictionary mentioned?
-"""
-
-# ---------- PASS H: Biobank Updates (No Prompt Leakage) ----------
-[task_biobank_updates]
-template_json = """
-{
-  "biospecimen_access": "boolean",
-  "biospecimen_access_conditions": "string",
-  "governance_details": "string",
-  "approval_for_publication": "boolean",
-  "release_type": "string",
-  "release_description": "string",
-  "number_of_records": "integer",
-  "release_frequency_months": "integer",
-  "refresh_time_days": "integer",
-  "lag_time_days": "integer",
-  "refresh_period": ["string"],
-  "date_last_refresh": "string",
-  "preservation_indefinite": "boolean",
-  "preservation_duration_years": "integer"
-}
-"""
-
-instructions = """
-Extract logistics about biospecimen access, data updates, and preservation.
-
-**GUIDELINES:**
-- Only extract technical numbers (days/months) if explicitly written in the text.
-- If not mentioned, return **null**. Do NOT copy examples.
-
-- biospecimen_access:
-  If the resource contains samples, can researchers retrieve them? Return true if yes.
-
-- biospecimen_access_conditions:
-  Conditions for retrieving samples (e.g. MTA, Review).
-
-- governance_details:
-  Details about ethics committees, steering committees, or certifications (ISO).
-
-- approval_for_publication:
-  Is approval needed before publishing results? Return true/false.
-
-- release_type:
-  "Closed" (static dataset) or "Continuous" (ongoing recruitment/updates).
-
-- release_description:
-  Description of the release cycle or update frequency.
-
-- number_of_records:
-  Total count of unique records/participants.
-
-- release_frequency_months:
-  Number of months between releases (only if explicitly stated).
-
-- refresh_time_days:
-  Days between event and data availability.
-
-- lag_time_days:
-  Lag time.
-
-- refresh_period:
-  Schedule of refreshes (e.g. "Quarterly").
-
-- date_last_refresh:
-  Date of last update.
-
-- preservation_indefinite:
-  Are samples/data stored "indefinitely" or "long-term"? Return true if yes.
-
-- preservation_duration_years:
-  If storage is limited, how many years?
-"""
-# ---------- PASS I: Quality, SOPs & Validation (Final Sanitized) ----------
-[task_quality]
-template_json = """
-{
-  "standard_operating_procedures": "boolean",
-  "qualification": "boolean",
-  "qualifications_description": "string",
-  "audit_possible": "boolean",
-  "completeness": "string",
-  "completeness_over_time": "string",
-  "completeness_results": "string",
-  "quality_description": "string",
-  "quality_over_time": "string",
-  "access_for_validation": "boolean",
-  "quality_validation_frequency": "string",
-  "quality_validation_methods": "string",
-  "correction_methods": "string",
-  "quality_validation_results": "string",
-  "quality_marks": ["string"]
-}
-"""
-
-instructions = """
-Extract details about data quality control, validation, and certifications.
-
-**STRICT RULES:**
-1. **No Hallucinations:** Do NOT copy examples from prompts. Only extract what is written in the PDF.
-2. **Context:** "Participation rate" is NOT "Completeness". Do not confuse them.
-
-- standard_operating_procedures:
-  Does the text explicitly mention "SOPs" or "Standard Operating Procedures"?
-
-- qualification:
-  Has the biobank received formal certification (e.g. ISO)? Return true if yes.
-
-- qualifications_description:
-  Name of the certification found in text.
-
-- audit_possible:
-  Is "auditing", "audit trail", or "monitoring" mentioned?
-
-- completeness:
-  Sentences describing missing data or data completeness. 
-  (Ignore participation rates).
-
-- completeness_over_time:
-  Changes in data completeness over time.
-
-- completeness_results:
-  Methods described to check if data is complete.
-
-- quality_description:
-  General description of data quality processes.
-
-- quality_over_time:
-  Trends in quality.
-
-- access_for_validation:
-  Can data be verified against source documents?
-
-- quality_validation_frequency:
-  Frequency of checks (e.g. "Daily", "Monthly"). Only if stated.
-
-- quality_validation_methods:
-  Methods used for validation described in the text.
-
-- correction_methods:
-  How are errors fixed?
-
-- quality_validation_results:
-  Reference to a report about data quality.
-
-- quality_marks:
-  Specific quality seals explicitly named in the text.
-"""
-
-# ---------- PASS J: Linkage & Specifications (No Prompt Leakage) ----------
-[task_linkage_specs]
-template_json = """
-{
-  "biospecimen_collected": ["string"],
-  "languages": ["string"],
-  "multiple_entries": "boolean",
-  "has_identifier": "boolean",
-  "identifier_description": "string",
-  "prelinked": "boolean",
-  "linkage_options": "string",
-  "linkage_possibility": "boolean",
-  "linked_resources_names": ["string"]
-}
-"""
-
-instructions = """
-Extract technical specifications regarding samples, language, identifiers, and linkage.
-
-**STRICT RULES:**
-1. **No Copying:** Do NOT copy examples from the prompt. Only extract what is in the text.
-2. **Language:** Infer the language code (e.g. "nl", "en", "fr") based on the country of the study.
-
-- biospecimen_collected:
-  List specific types of biological samples collected (e.g. Blood, Tissue, DNA).
-
-- languages:
-  ISO 639 code of the source records (e.g. "en" for UK/USA, "nl" for Netherlands).
-
-- multiple_entries:
-  Can one person have multiple rows/entries over time? Return true if yes.
-
-- has_identifier:
-  Is a unique identifier used? Return true if mentioned.
-
-- identifier_description:
-  Description of the ID (e.g. Pseudonymized ID).
-
-- prelinked:
-  Is the data already linked to other sources? Return true if yes.
-
-- linkage_options:
-  Description of linkage possibilities.
-
-- linkage_possibility:
-  Is it possible to link this data to external sources? Return true if yes.
-
-- linked_resources_names:
-  Names of specific registries or databases that are **explicitly linked** in the text.
-  (Look for: "Cancer Registry", "Municipal Records", "Statistics Bureau").
-  **CRITICAL:** Do NOT list datasets that are not in the text.
-"""
-
-# ---------- PASS K: Triggers, Subpopulations & Events ----------
-[task_triggers_subpops]
-template_json = """
-{
-  "reason_sustained": "string",
-  "record_trigger": "string",
-  "unit_of_observation": "string",
-  "subpopulations_resource": ["string"],
-  "subpopulations_name": ["string"],
-  "collection_events_resource": ["string"],
-  "collection_events_name": ["string"],
-  "data_resources_included": ["string"]
-}
-"""
-
-instructions = """
-Extract operational logic and internal structure.
-
-**STRICT RULES:**
-1. **No Copying:** Do NOT copy examples (like "hospital discharge") unless written in the text.
-2. **Evidence:** Only extract subpopulations or events explicitly defined in the Methods/Results.
-
-- reason_sustained:
-  Why does the data bank exist? (e.g. "Clinical purposes", "Research", "Surveillance").
-  Look for "The aim is...", "established to...".
-
-- record_trigger:
-  What event causes a record to be created?
-  Examples found in text: "Hospital admission", "Diagnosis", "Baseline visit", "Questionnaire return".
-
-- unit_of_observation:
-  What does one row/record represent?
-  (e.g. "Person", "Patient", "Sample", "Prescription").
-
-- subpopulations_resource:
-  List names of specific cohorts or subgroups defined WITHIN this study.
-  (e.g. "Mothers", "Partners", "Children", "Lung cancer group", "Head & Neck group").
-
-- subpopulations_name:
-  (Same as above).
-
-- collection_events_resource:
-  List specific data collection timepoints or phases.
-  (e.g. "Baseline", "Focus@7", "1-year follow-up", "T1").
-
-- collection_events_name:
-  (Same as above).
-
-- data_resources_included:
-  List other major data collections included in this network (if applicable).
 """

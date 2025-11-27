@@ -604,7 +604,7 @@ Extract details about data quality control, validation, and certifications.
   Specific quality seals explicitly named in the text.
 """
 
-# ---------- PASS J: Linkage & Specifications (No Prompt Leakage) ----------
+# ---------- PASS J: Linkage & Specifications ----------
 [task_linkage_specs]
 template_json = """
 {
@@ -623,88 +623,42 @@ template_json = """
 instructions = """
 Extract technical specifications regarding samples, language, identifiers, and linkage.
 
-**STRICT RULES:**
-1. **No Copying:** Do NOT copy examples from the prompt. Only extract what is in the text.
-2. **Language:** Infer the language code (e.g. "nl", "en", "fr") based on the country of the study.
+**GUIDELINES:**
+- **Biospecimens:** List specific types if collected (e.g. "Blood", "Tissue", "DNA", "Urine"). If none, return [].
+- **Language:** Infer the likely language of the *source records* based on the country. (e.g. Netherlands -> "nl", UK -> "en").
+- **Linkage:** Distinguish between "already linked" (Prelinked) and "can be linked" (Possibility).
 
 - biospecimen_collected:
-  List specific types of biological samples collected (e.g. Blood, Tissue, DNA).
+  List types of biological samples collected and stored.
+  (e.g. "Serum", "Plasma", "Tumor tissue", "DNA").
 
 - languages:
-  ISO 639 code of the source records (e.g. "en" for UK/USA, "nl" for Netherlands).
+  ISO 639 codes of the source data (e.g. "en", "nl", "fr").
+  Infer from the study setting (e.g. "General Practitioners in the Netherlands" implies "nl").
 
 - multiple_entries:
-  Can one person have multiple rows/entries over time? Return true if yes.
+  Can one person have multiple rows/entries over time? (e.g. Longitudinal data, multiple visits).
+  Return true if yes.
 
 - has_identifier:
-  Is a unique identifier used? Return true if mentioned.
+  Is a unique identifier (pseudonym/ID) used to track participants?
+  Return true if mentioned.
 
 - identifier_description:
-  Description of the ID (e.g. Pseudonymized ID).
+  Description of the ID (e.g. "Pseudonymized ID", "NHS number", "BSN").
 
 - prelinked:
-  Is the data already linked to other sources? Return true if yes.
+  Is the data *already* linked to other sources in this database?
+  Return true if yes.
 
 - linkage_options:
-  Description of linkage possibilities.
+  Description of what external data can be linked (e.g. "Linkage to Cancer Registry possible").
 
 - linkage_possibility:
-  Is it possible to link this data to external sources? Return true if yes.
+  Is it *possible* to link this data to other external sources (e.g. via a Trusted Third Party)?
+  Return true if yes.
 
 - linked_resources_names:
-  Names of specific registries or databases that are **explicitly linked** in the text.
-  (Look for: "Cancer Registry", "Municipal Records", "Statistics Bureau").
-  **CRITICAL:** Do NOT list datasets that are not in the text.
-"""
-
-# ---------- PASS K: Triggers, Subpopulations & Events ----------
-[task_triggers_subpops]
-template_json = """
-{
-  "reason_sustained": "string",
-  "record_trigger": "string",
-  "unit_of_observation": "string",
-  "subpopulations_resource": ["string"],
-  "subpopulations_name": ["string"],
-  "collection_events_resource": ["string"],
-  "collection_events_name": ["string"],
-  "data_resources_included": ["string"]
-}
-"""
-
-instructions = """
-Extract operational logic and internal structure.
-
-**STRICT RULES:**
-1. **No Copying:** Do NOT copy examples (like "hospital discharge") unless written in the text.
-2. **Evidence:** Only extract subpopulations or events explicitly defined in the Methods/Results.
-
-- reason_sustained:
-  Why does the data bank exist? (e.g. "Clinical purposes", "Research", "Surveillance").
-  Look for "The aim is...", "established to...".
-
-- record_trigger:
-  What event causes a record to be created?
-  Examples found in text: "Hospital admission", "Diagnosis", "Baseline visit", "Questionnaire return".
-
-- unit_of_observation:
-  What does one row/record represent?
-  (e.g. "Person", "Patient", "Sample", "Prescription").
-
-- subpopulations_resource:
-  List names of specific cohorts or subgroups defined WITHIN this study.
-  (e.g. "Mothers", "Partners", "Children", "Lung cancer group", "Head & Neck group").
-
-- subpopulations_name:
-  (Same as above).
-
-- collection_events_resource:
-  List specific data collection timepoints or phases.
-  (e.g. "Baseline", "Focus@7", "1-year follow-up", "T1").
-
-- collection_events_name:
-  (Same as above).
-
-- data_resources_included:
-  List other major data collections included in this network (if applicable).
+  Names of specific resources/registries that are currently linked.
+  (e.g. "National Pupil Database", "Civil Registry").
 """

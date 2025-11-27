@@ -528,7 +528,8 @@ Extract logistics about biospecimen access, data updates, and preservation.
 - preservation_duration_years:
   If storage is limited, how many years?
 """
-# ---------- PASS I: Quality, SOPs & Validation (Final Sanitized) ----------
+
+# ---------- PASS I: Quality, SOPs & Validation (Complete) ----------
 [task_quality]
 template_json = """
 {
@@ -554,157 +555,53 @@ instructions = """
 Extract details about data quality control, validation, and certifications.
 
 **STRICT RULES:**
-1. **No Hallucinations:** Do NOT copy examples from prompts. Only extract what is written in the PDF.
-2. **Context:** "Participation rate" is NOT "Completeness". Do not confuse them.
+1. **No Copying:** Do NOT copy examples (like "99% complete" or "ENCePP") unless they are in the text.
+2. **Evidence:** Only return true/strings if the text explicitly describes the process.
 
 - standard_operating_procedures:
-  Does the text explicitly mention "SOPs" or "Standard Operating Procedures"?
+  Does the text mention using "SOPs" or "Standard Operating Procedures" for data management?
 
 - qualification:
-  Has the biobank received formal certification (e.g. ISO)? Return true if yes.
+  Has the biobank/source successfully undergone a formal qualification process (e.g. ISO, EMA)? 
+  Return true if yes.
 
 - qualifications_description:
-  Name of the certification found in text.
+  Name of the qualification(s) granted (e.g. "ISO 9001:2008").
 
 - audit_possible:
-  Is "auditing", "audit trail", or "monitoring" mentioned?
+  Is "auditing", "external monitoring", or "site visits" mentioned as possible?
 
 - completeness:
-  Sentences describing missing data or data completeness. 
-  (Ignore participation rates).
+  Describe the completeness of the data bank (e.g. mention of missing values/rates).
 
 - completeness_over_time:
-  Changes in data completeness over time.
+  Describe any changes in completeness that have occurred over time.
 
 - completeness_results:
-  Methods described to check if data is complete.
+  What methods or processes are applied to check completeness? 
+  (e.g. "Automated checks", "Required fields").
 
 - quality_description:
-  General description of data quality processes.
+  Describe the general quality/accuracy of the data bank.
 
 - quality_over_time:
-  Trends in quality.
+  Describe any changes in quality that have occurred over time.
 
 - access_for_validation:
-  Can data be verified against source documents?
+  Can validity be verified against source documents? (e.g. "Source Data Verification", "Chart review").
 
 - quality_validation_frequency:
-  Frequency of checks (e.g. "Daily", "Monthly"). Only if stated.
+  How often are data quality checks conducted? (e.g. "Monthly", "Real-time").
 
 - quality_validation_methods:
-  Methods used for validation described in the text.
+  What methods are applied for data quality checks? (e.g. "Range checks", "Consistency checks").
 
 - correction_methods:
-  How are errors fixed?
+  What methods are applied to correct illogical values? (e.g. "Queries to site", "Imputation").
 
 - quality_validation_results:
-  Reference to a report about data quality.
+  Reference to a publication or report about the data quality results.
 
 - quality_marks:
-  Specific quality seals explicitly named in the text.
-"""
-
-# ---------- PASS J: Linkage & Specifications (No Prompt Leakage) ----------
-[task_linkage_specs]
-template_json = """
-{
-  "biospecimen_collected": ["string"],
-  "languages": ["string"],
-  "multiple_entries": "boolean",
-  "has_identifier": "boolean",
-  "identifier_description": "string",
-  "prelinked": "boolean",
-  "linkage_options": "string",
-  "linkage_possibility": "boolean",
-  "linked_resources_names": ["string"]
-}
-"""
-
-instructions = """
-Extract technical specifications regarding samples, language, identifiers, and linkage.
-
-**STRICT RULES:**
-1. **No Copying:** Do NOT copy examples from the prompt. Only extract what is in the text.
-2. **Language:** Infer the language code (e.g. "nl", "en", "fr") based on the country of the study.
-
-- biospecimen_collected:
-  List specific types of biological samples collected (e.g. Blood, Tissue, DNA).
-
-- languages:
-  ISO 639 code of the source records (e.g. "en" for UK/USA, "nl" for Netherlands).
-
-- multiple_entries:
-  Can one person have multiple rows/entries over time? Return true if yes.
-
-- has_identifier:
-  Is a unique identifier used? Return true if mentioned.
-
-- identifier_description:
-  Description of the ID (e.g. Pseudonymized ID).
-
-- prelinked:
-  Is the data already linked to other sources? Return true if yes.
-
-- linkage_options:
-  Description of linkage possibilities.
-
-- linkage_possibility:
-  Is it possible to link this data to external sources? Return true if yes.
-
-- linked_resources_names:
-  Names of specific registries or databases that are **explicitly linked** in the text.
-  (Look for: "Cancer Registry", "Municipal Records", "Statistics Bureau").
-  **CRITICAL:** Do NOT list datasets that are not in the text.
-"""
-
-# ---------- PASS K: Triggers, Subpopulations & Events ----------
-[task_triggers_subpops]
-template_json = """
-{
-  "reason_sustained": "string",
-  "record_trigger": "string",
-  "unit_of_observation": "string",
-  "subpopulations_resource": ["string"],
-  "subpopulations_name": ["string"],
-  "collection_events_resource": ["string"],
-  "collection_events_name": ["string"],
-  "data_resources_included": ["string"]
-}
-"""
-
-instructions = """
-Extract operational logic and internal structure.
-
-**STRICT RULES:**
-1. **No Copying:** Do NOT copy examples (like "hospital discharge") unless written in the text.
-2. **Evidence:** Only extract subpopulations or events explicitly defined in the Methods/Results.
-
-- reason_sustained:
-  Why does the data bank exist? (e.g. "Clinical purposes", "Research", "Surveillance").
-  Look for "The aim is...", "established to...".
-
-- record_trigger:
-  What event causes a record to be created?
-  Examples found in text: "Hospital admission", "Diagnosis", "Baseline visit", "Questionnaire return".
-
-- unit_of_observation:
-  What does one row/record represent?
-  (e.g. "Person", "Patient", "Sample", "Prescription").
-
-- subpopulations_resource:
-  List names of specific cohorts or subgroups defined WITHIN this study.
-  (e.g. "Mothers", "Partners", "Children", "Lung cancer group", "Head & Neck group").
-
-- subpopulations_name:
-  (Same as above).
-
-- collection_events_resource:
-  List specific data collection timepoints or phases.
-  (e.g. "Baseline", "Focus@7", "1-year follow-up", "T1").
-
-- collection_events_name:
-  (Same as above).
-
-- data_resources_included:
-  List other major data collections included in this network (if applicable).
+  Specific quality seals explicitly named (e.g. "CoreTrustSeal", "ENCePP").
 """
