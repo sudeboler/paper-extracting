@@ -1,0 +1,908 @@
+[llm]
+base_url = "http://127.0.0.1:8080/v1"
+model    = "numind/NuExtract-2.0-8B"
+api_key  = "sk-local"
+use_grammar = false
+max_tokens = 4096
+temperature = 0.0
+
+[pdf]
+path = "data/OncoLifeS.pdf"
+max_pages = 40
+
+# ---------- PASS A: Structuur & Metadata ----------
+[task_main]
+template_json = """
+{
+  "pid": "string",
+  "study_name": "string",
+  "local_name": "string",
+  "study_acronym": "string",
+  "study_types": ["string"],
+  "cohort_type": "string",
+  "website": "string",
+  "start_year": "integer",
+  "end_year": "integer",
+  "contact_email": "string",
+  "n_included": "integer",
+  "countries": ["verbatim-string"],
+  "regions": ["verbatim-string"],
+  "population_age_group": "string",
+  "keywords": ["string"],
+}
+"""
+
+instructions = """
+Extract exact values from the text.
+
+- pid: 
+  Locate the DOI string (starts with "10."). Return exact ID (e.g. "10.1186/...").
+
+- study_name: Official name of the cohort.
+- local_name: The name of the resource in the national language (e.g. Dutch), ONLY if different from the study_name. Otherwise null.
+- study_acronym: The acronym used (e.g. "OncoLifeS").
+- study_types: Select tags: "Biobank", "Cohort study", "Clinical trial", "Registry".
+- cohort_type: Specific type (e.g. "hospital-based cohort").
+- website: Main URL.
+- contact_email: Contact email address.
+- n_included: Number of participants enrolled (e.g. 3704).
+
+- start_year: Year recruitment started.
+
+- end_year: 
+  The year recruitment PERMANENTLY ended.
+  CRITICAL RULE: If the text mentions "ongoing basis", "continued adherence", or "future research", return null.
+  (In this text: "Inclusion... is prospective and on an ongoing basis" -> return null).
+
+- countries:
+  Country of recruitment. Use full name (e.g. "Netherlands").
+
+- regions:
+  Specific region (e.g. "North of the Netherlands").
+
+- population_age_group:
+  The age range of eligible participants (e.g. "≥18 years").
+- keywords:
+  List keywords explicitly mentioned in the Abstract or Header (often labeled "Keywords"). 
+  Do not invent keywords based on the text; only extract if listed.
+"""
+
+# ---------- PASS B: Criteria & Design (Strict Cleanup) ----------
+[task_criteria]
+template_json = """
+{
+  "inclusion_criteria": ["string"],
+  "other_inclusion_criteria": ["string"],
+  "exclusion_criteria": ["string"],
+  "other_exclusion_criteria": ["string"],
+  "clinical_study_types": ["string"],
+  "type_other": "string",
+  "rwd_type": ["string"],
+  "network_type": ["string"]
+}
+"""
+
+instructions = """
+Extract eligibility criteria.
+STRICT CONSTRAINT: You must STRIP ages and administrative phrases.
+
+- inclusion_criteria:
+  List the diseases or participant groups.
+  FORBIDDEN: Do NOT include age numbers. Do NOT include "informed consent".
+  
+  Correct Transformations:
+  * "Adult patients (>18 years) diagnosed with cancer" -> "patients with cancer"
+  * "patients with genetically increased risk of cancer" -> "patients with genetically increased risk of cancer"
+  * "participants of the OncoLifeS" -> (SKIP/REMOVE this generic phrase)
+
+- other_inclusion_criteria:
+  List purely administrative requirements EXCEPT informed consent.
+  If the only requirement is "Informed consent", return [].
+  (We assume consent is always required).
+
+- exclusion_criteria:
+  Medical exclusions. If text says "without further exclusion criteria", return [].
+
+- other_exclusion_criteria:
+  Non-medical exclusions.
+
+- clinical_study_types:
+  Design keywords (e.g. "prospective hospital-based data-biobank").
+
+- type_other:
+  If the study type is not a standard Biobank or Cohort, describe the type here.
+
+- rwd_type:
+  If this is a registry or real-world data source, specify the type (e.g. "Patient registry", "Disease registry", "Health records").
+
+- network_type:
+  If the resource is a Network, specify the type of network.
+"""
+
+# ---------- PASS C: Design & Data Collection ----------
+[task_design_details]
+template_json = """
+{
+  "design": ["string"],
+  "design_description": "string",
+  "data_collection_type": ["string"],
+  "data_collection_description": "string",
+  "description": "string",
+  "time_span_description": "string"
+
+}
+"""
+
+instructions = """
+Extract study design details.
+
+- design:
+  Choose from: ["Longitudinal", "Cross-sectional", "Case-control", "Cohort study", "Randomized Controlled Trial"].
+  - Longitudinal: Follow-up over time.
+
+- design_description:
+  Copy the **single best sentence** defining the study design from the Methods section.
+  Example: "We established a hospital-based data-biobank..."
+
+- data_collection_type:
+  Choose from: ["Prospective", "Retrospective"].
+  - Prospective: Future collection.
+  - Retrospective: Past records.
+
+- data_collection_description:
+  Copy a sentence describing HOW data was obtained (e.g. "Clinical data are collected by physicians...").
+
+- description:
+  Copy the "Aim" or "Objective" sentence verbatim from the Abstract.
+- time_span_description:
+  Text describing the duration or specific time coverage of the data collection (e.g. "Follow-up for 10 years", "Data collected between 1990 and 2020").
+"""
+# ---------- PASS D: Population & Samples (Final Polish) ----------
+[task_population]
+template_json = """
+{
+  "number_of_participants_with_samples": "integer",
+  "underlying_population": "string",
+  "population_of_interest": ["string"],
+  "population_of_interest_other": "string",
+  "part_of_networks": ["string"],
+  "population_entry": ["string"],
+  "population_entry_other": "string",
+  "population_exit": ["string"],
+  "population_exit_other": "string",
+  "population_disease": ["string"],
+  "population_oncology_topology": ["string"],
+  "population_oncology_morphology": ["string"],
+  "population_coverage": "string",
+  "population_not_covered": "string",
+  "age_min": "integer",
+  "age_max": "integer"
+}
+"""
+
+instructions = """
+Extract population details.
+
+- number_of_participants_with_samples:
+  Count of individuals with stored samples. If the paper implies not everyone has samples (e.g. "available for 80%"), return null.
+
+- underlying_population:
+  "Hospital patients" (if clinical) or "General population" (if registry/community).
+
+- population_of_interest:
+  Target group (e.g. "Cancer patients").
+
+- population_of_interest_other:
+  Specifics. If none, return null. **NEVER** return the string "Other".
+
+- part_of_networks:
+  Consortia/networks (e.g. "EURACAN").
+
+- population_entry:
+  Triggers (e.g. "Diagnosis").
+
+- population_entry_other:
+  If none, return null. **NEVER** return the string "Other".
+
+- population_exit:
+  Triggers (e.g. "Death", "Withdrawal").
+
+- population_exit_other:
+  If none, return null. **NEVER** return the string "Other".
+
+- population_disease:
+  "Oncology", "Cardiovascular", etc.
+
+- population_oncology_topology:
+  Organ sites (e.g. "Lung").
+
+- population_oncology_morphology:
+  Histology (e.g. "Carcinoma").
+
+- population_coverage:
+  Participation rate or coverage description.
+
+- population_not_covered:
+  Description of exclusions/refusals.
+
+- age_min:
+  Minimum age integer.
+
+- age_max:
+  Maximum age integer. 
+  CRITICAL: If no upper limit is explicitly stated, return null. 
+  Do NOT invent "100" or "99".
+"""
+
+# ---------- PASS E: Access & Governance (Final Polish) ----------
+[task_access]
+template_json = """
+{
+  "informed_consent_type": "string",
+  "informed_consent_required": "string",
+  "informed_consent_other": "string",
+  "access_rights": "string",
+  "data_access_conditions": ["string"],
+  "data_use_conditions": ["string"],
+  "data_access_conditions_description": "string",
+  "data_access_fee": "boolean",
+  "access_identifiable_data": "string",
+  "access_identifiable_data_route": "string",
+  "access_subject_details": "boolean",
+  "access_subject_details_route": "string",
+  "access_third_party": "boolean",
+  "access_third_party_conditions": "string",
+  "access_non_eu": "boolean",
+  "access_non_eu_conditions": "string"
+}
+"""
+
+instructions = """
+Extract access details.
+
+- informed_consent_type:
+  "Written", "Opt-out", "Broad".
+
+- informed_consent_required:
+  "Yes" or "No".
+
+- informed_consent_other:
+  Details.
+
+- access_rights:
+  CRITICAL DEFINITIONS:
+  - "Publicly accessible": Anyone can download data NOW without asking.
+  - "Restricted access": Requires application, board approval, or registration.
+  - "Non-public": No access allowed.
+
+- data_access_conditions:
+  Keywords (e.g. "Research proposal").
+
+- data_use_conditions:
+  Keywords (e.g. "Research use only").
+
+- data_access_conditions_description:
+  Short description.
+
+- data_access_fee:
+  Does a fee apply (cover costs)? Return true/false.
+
+- access_identifiable_data:
+  Can external researchers see names/IDs?
+  CRITICAL: If data is "anonymized", "coded" or handled by a "trusted third party", return "No" (or "Pseudonymized"). 
+  Only return "Yes" if raw names are shared.
+
+- access_identifiable_data_route:
+  Route if yes.
+
+- access_subject_details:
+  Can patients be contacted? Return true/false.
+
+- access_subject_details_route:
+  How (e.g. via trusted third party).
+
+- access_third_party:
+  Can external researchers access data? Return true/false.
+
+- access_third_party_conditions:
+  Conditions.
+
+- access_non_eu:
+  Can non-EU access?
+
+- access_non_eu_conditions:
+  Conditions.
+"""
+
+# ---------- PASS F: Contributors & Networks (Exact Schema) ----------
+[task_contributors]
+template_json = """
+{
+  "counts_resource": "string",
+  "counts_age_group": "string",
+  "organisations_involved_resource": ["string"],
+  "organisations_involved_id": ["string"],
+  "publisher_resource": "string",
+  "publisher_id": "string",
+  "creator_resource": "string",
+  "creator_id": "string",
+  "people_involved_resource": ["string"],
+  "contact_point_resource": "string",
+  "contact_point_first_name": "string",
+  "contact_point_last_name": "string",
+  "child_networks": ["string"],
+  "parent_networks": ["string"]
+}
+"""
+
+instructions = """
+Extract contributor and network details mapping to the requested schema.
+
+- counts_resource:
+  Description of sample counts (e.g. "11,343 DNA samples").
+
+- counts_age_group:
+  Extract sentences describing numbers per age group.
+  Example format: "N=50 aged 20-30, N=40 aged >50". 
+  CRITICAL: If exact numbers per age group are NOT in the text, return null. 
+  Do NOT copy the example values.
+
+- organisations_involved_resource:
+  List names of participating organizations (Universities, Hospitals, Funders).
+
+- organisations_involved_id:
+  External identifiers for these organizations (e.g. ROR IDs) if explicitly mentioned. Otherwise return [].
+
+- publisher_resource:
+  Name of the lead organisation publishing the resource.
+
+- publisher_id:
+  External ID of publisher (if mentioned). Otherwise null.
+
+- creator_resource:
+  Name of the organisation that created the resource.
+
+- creator_id:
+  External ID of creator (if mentioned). Otherwise null.
+
+- people_involved_resource:
+  List of FULL names of key contributors (e.g. "Jean Golding", "Andy Boyd").
+
+- contact_point_resource:
+  The FULL name of the primary contact person or corresponding author.
+
+- contact_point_first_name:
+  The first name of the contact person.
+
+- contact_point_last_name:
+  The last name of the contact person.
+
+- child_networks:
+  Names of sub-studies or sub-networks contained WITHIN this resource.
+
+- parent_networks:
+  Names of larger consortia or networks this resource belongs to (e.g. "BBMRI", "ELSPAC").
+"""
+
+# ---------- PASS G: Data Model (Final Production Ready) ----------
+[task_datamodel]
+template_json = """
+{
+  "datasets_resource": ["string"],
+  "datasets_name": ["string"],
+  "samplesets_resource": ["string"],
+  "samplesets_name": ["string"],
+  "areas_of_information": ["string"],
+  "areas_of_information_rwd": ["string"],
+  "quality_of_life_measures": ["string"],
+  "cause_of_death_vocabulary": "string",
+  "indication_vocabulary": "string",
+  "genetic_data_vocabulary": "string",
+  "care_setting_description": "string",
+  "medicinal_product_vocabulary": "string",
+  "prescriptions_vocabulary": "string",
+  "dispensings_vocabulary": "string",
+  "procedures_vocabulary": "string",
+  "biomarker_data_vocabulary": "string",
+  "diagnosis_medical_event_vocabulary": "string",
+  "data_dictionary_available": "boolean",
+  "disease_details": ["string"]
+}
+"""
+
+instructions = """
+Extract data standards, vocabularies, and datasets.
+
+**GUIDELINES:**
+1. **Datasets:** Include external databases ONLY if the text says they were **linked**, **retrieved**, or **used**.
+2. **Prompt Leakage:** Do NOT output examples from this prompt (like "Pensions Data") unless they are in the text.
+3. **Vocabularies:** Do not guess. Use strict extraction.
+
+- datasets_resource:
+  Names of administrative databases, registries, or external cohorts linked to this study.
+  **Instruction:** Look for capitalized names of registries or databases mentioned in the context of "record linkage" or "data retrieval".
+  **Exclude:** Comparison studies in the Discussion.
+
+- datasets_name:
+  (Same as above).
+
+- samplesets_resource:
+  Names of sample collections physically held by THIS study.
+
+- samplesets_name:
+  (Same as above).
+
+- areas_of_information:
+  Broad categories of data collected.
+
+- areas_of_information_rwd:
+  Sources of Real World Data (e.g. "EHR", "Linkage").
+
+- quality_of_life_measures:
+  Specific questionnaires named in the text.
+
+- care_setting_description:
+  Setting.
+
+- disease_details:
+  Specific diseases studied. (Exclude lifestyle/diet).
+
+# --- VOCABULARIES (Strict Extraction) ---
+
+- diagnosis_medical_event_vocabulary:
+  Coding system for diagnoses (e.g. ICD, ICPC, SNOMED).
+
+- cause_of_death_vocabulary:
+  Coding system for mortality.
+
+- medicinal_product_vocabulary:
+  Coding system for medication.
+
+- prescriptions_vocabulary:
+  Coding system for prescriptions.
+
+- dispensings_vocabulary:
+  Coding system for dispensings.
+
+- procedures_vocabulary:
+  Coding system for medical procedures.
+
+- indication_vocabulary:
+  Coding system for indications.
+
+- genetic_data_vocabulary:
+  Standards used for reporting genetic data.
+
+- biomarker_data_vocabulary:
+  Standards used for biomarkers.
+
+- data_dictionary_available:
+  Is a data dictionary mentioned?
+"""
+
+# ---------- PASS H: Biobank Updates (No Prompt Leakage) ----------
+[task_biobank_updates]
+template_json = """
+{
+  "biospecimen_access": "boolean",
+  "biospecimen_access_conditions": "string",
+  "governance_details": "string",
+  "approval_for_publication": "boolean",
+  "release_type": "string",
+  "release_description": "string",
+  "number_of_records": "integer",
+  "release_frequency_months": "integer",
+  "refresh_time_days": "integer",
+  "lag_time_days": "integer",
+  "refresh_period": ["string"],
+  "date_last_refresh": "string",
+  "preservation_indefinite": "boolean",
+  "preservation_duration_years": "integer"
+}
+"""
+
+instructions = """
+Extract logistics about biospecimen access, data updates, and preservation.
+
+**GUIDELINES:**
+- Only extract technical numbers (days/months) if explicitly written in the text.
+- If not mentioned, return **null**. Do NOT copy examples.
+
+- biospecimen_access:
+  If the resource contains samples, can researchers retrieve them? Return true if yes.
+
+- biospecimen_access_conditions:
+  Conditions for retrieving samples (e.g. MTA, Review).
+
+- governance_details:
+  Details about ethics committees, steering committees, or certifications (ISO).
+
+- approval_for_publication:
+  Is approval needed before publishing results? Return true/false.
+
+- release_type:
+  "Closed" (static dataset) or "Continuous" (ongoing recruitment/updates).
+
+- release_description:
+  Description of the release cycle or update frequency.
+
+- number_of_records:
+  Total count of unique records/participants.
+
+- release_frequency_months:
+  Number of months between releases (only if explicitly stated).
+
+- refresh_time_days:
+  Days between event and data availability.
+
+- lag_time_days:
+  Lag time.
+
+- refresh_period:
+  Schedule of refreshes (e.g. "Quarterly").
+
+- date_last_refresh:
+  Date of last update.
+
+- preservation_indefinite:
+  Are samples/data stored "indefinitely" or "long-term"? Return true if yes.
+
+- preservation_duration_years:
+  If storage is limited, how many years?
+"""
+# ---------- PASS I: Quality, SOPs & Validation (Final Sanitized) ----------
+[task_quality]
+template_json = """
+{
+  "standard_operating_procedures": "boolean",
+  "qualification": "boolean",
+  "qualifications_description": "string",
+  "audit_possible": "boolean",
+  "completeness": "string",
+  "completeness_over_time": "string",
+  "completeness_results": "string",
+  "quality_description": "string",
+  "quality_over_time": "string",
+  "access_for_validation": "boolean",
+  "quality_validation_frequency": "string",
+  "quality_validation_methods": "string",
+  "correction_methods": "string",
+  "quality_validation_results": "string",
+  "quality_marks": ["string"]
+}
+"""
+
+instructions = """
+Extract details about data quality control, validation, and certifications.
+
+**STRICT RULES:**
+1. **No Hallucinations:** Do NOT copy examples from prompts. Only extract what is written in the PDF.
+2. **Context:** "Participation rate" is NOT "Completeness". Do not confuse them.
+
+- standard_operating_procedures:
+  Does the text explicitly mention "SOPs" or "Standard Operating Procedures"?
+
+- qualification:
+  Has the biobank received formal certification (e.g. ISO)? Return true if yes.
+
+- qualifications_description:
+  Name of the certification found in text.
+
+- audit_possible:
+  Is "auditing", "audit trail", or "monitoring" mentioned?
+
+- completeness:
+  Sentences describing missing data or data completeness. 
+  (Ignore participation rates).
+
+- completeness_over_time:
+  Changes in data completeness over time.
+
+- completeness_results:
+  Methods described to check if data is complete.
+
+- quality_description:
+  General description of data quality processes.
+
+- quality_over_time:
+  Trends in quality.
+
+- access_for_validation:
+  Can data be verified against source documents?
+
+- quality_validation_frequency:
+  Frequency of checks (e.g. "Daily", "Monthly"). Only if stated.
+
+- quality_validation_methods:
+  Methods used for validation described in the text.
+
+- correction_methods:
+  How are errors fixed?
+
+- quality_validation_results:
+  Reference to a report about data quality.
+
+- quality_marks:
+  Specific quality seals explicitly named in the text.
+"""
+
+# ---------- PASS J: Linkage & Specifications (No Prompt Leakage) ----------
+[task_linkage_specs]
+template_json = """
+{
+  "biospecimen_collected": ["string"],
+  "languages": ["string"],
+  "multiple_entries": "boolean",
+  "has_identifier": "boolean",
+  "identifier_description": "string",
+  "prelinked": "boolean",
+  "linkage_options": "string",
+  "linkage_possibility": "boolean",
+  "linked_resources_names": ["string"]
+}
+"""
+
+instructions = """
+Extract technical specifications regarding samples, language, identifiers, and linkage.
+
+**STRICT RULES:**
+1. **No Copying:** Do NOT copy examples from the prompt. Only extract what is in the text.
+2. **Language:** Infer the language code (e.g. "nl", "en", "fr") based on the country of the study.
+
+- biospecimen_collected:
+  List specific types of biological samples collected (e.g. Blood, Tissue, DNA).
+
+- languages:
+  ISO 639 code of the source records (e.g. "en" for UK/USA, "nl" for Netherlands).
+
+- multiple_entries:
+  Can one person have multiple rows/entries over time? Return true if yes.
+
+- has_identifier:
+  Is a unique identifier used? Return true if mentioned.
+
+- identifier_description:
+  Description of the ID (e.g. Pseudonymized ID).
+
+- prelinked:
+  Is the data already linked to other sources? Return true if yes.
+
+- linkage_options:
+  Description of linkage possibilities.
+
+- linkage_possibility:
+  Is it possible to link this data to external sources? Return true if yes.
+
+- linked_resources_names:
+  Names of specific registries or databases that are **explicitly linked** in the text.
+  (Look for: "Cancer Registry", "Municipal Records", "Statistics Bureau").
+  **CRITICAL:** Do NOT list datasets that are not in the text.
+"""
+
+# ---------- PASS K: Triggers, Subpopulations & Events ----------
+[task_triggers_subpops]
+template_json = """
+{
+  "reason_sustained": "string",
+  "record_trigger": "string",
+  "unit_of_observation": "string",
+  "subpopulations_resource": ["string"],
+  "subpopulations_name": ["string"],
+  "collection_events_resource": ["string"],
+  "collection_events_name": ["string"],
+  "data_resources_included": ["string"]
+}
+"""
+
+instructions = """
+Extract operational logic and internal structure.
+
+**STRICT RULES:**
+1. **No Copying:** Do NOT copy examples (like "hospital discharge") unless written in the text.
+2. **Evidence:** Only extract subpopulations or events explicitly defined in the Methods/Results.
+
+- reason_sustained:
+  Why does the data bank exist? (e.g. "Clinical purposes", "Research", "Surveillance").
+  Look for "The aim is...", "established to...".
+
+- record_trigger:
+  What event causes a record to be created?
+  Examples found in text: "Hospital admission", "Diagnosis", "Baseline visit", "Questionnaire return".
+
+- unit_of_observation:
+  What does one row/record represent?
+  (e.g. "Person", "Patient", "Sample", "Prescription").
+
+- subpopulations_resource:
+  List names of specific cohorts or subgroups defined WITHIN this study.
+  (e.g. "Mothers", "Partners", "Children", "Lung cancer group", "Head & Neck group").
+
+- subpopulations_name:
+  (Same as above).
+
+- collection_events_resource:
+  List specific data collection timepoints or phases.
+  (e.g. "Baseline", "Focus@7", "1-year follow-up", "T1").
+
+- collection_events_name:
+  (Same as above).
+
+- data_resources_included:
+  List other major data collections included in this network (if applicable).
+"""
+
+# ---------- PASS L: CDM, Vocabularies & Funding ----------
+[task_cdm_funding]
+template_json = """
+{
+  "cdm_mapping_source": ["string"],
+  "cdm_mapping_source_dataset": ["string"],
+  "cdm_mapping_target": ["string"],
+  "cdm_mapping_target_dataset": ["string"],
+  "cdm_other": "string",
+  "etl_vocabularies": ["string"],
+  "etl_vocabularies_other": ["string"],
+  "publications": [
+    {
+      "resource_title": "string",
+      "doi": "string"
+    }
+  ],
+  "funding_sources": ["string"],
+  "funding_scheme": ["string"],
+  "funding_statement": "string"
+}
+"""
+
+instructions = """
+Extract metadata regarding Data Models, Vocabularies, Publications, and Funding.
+
+**STRICT RULES:**
+1. **Generic Extraction:** Do not look for specific keywords like "OMOP" or "Epic". Look for the *types* of systems described below.
+2. **differentiation:** The name of the software is NOT the same as the name of the study/biobank.
+
+- cdm_mapping_source:
+  The specific name of the Electronic Health Record (EHR) or hospital software system. 
+  (Tip: Often mentioned in the Methods section, sometimes inside parentheses after "health care record system").
+
+- cdm_mapping_source_dataset:
+  The name given to the source dataset.
+
+- cdm_mapping_target:
+  The name of any standardized Common Data Model (CDM) the data is converted to for interoperability.
+
+- cdm_mapping_target_dataset:
+  The name given to the target dataset.
+
+- cdm_other:
+  The name of the specific custom-built data management application or database.
+  **Critical:** Look for the phrase "application named..." or "database named..." and extract the name following it. Do NOT extract the study name here.
+
+- etl_vocabularies:
+  The names of standardized "Classifications" or "Terminologies" used for diagnosis or staging.
+  (Tip: Look for phrases like "according to the International Classification..." or "TNM").
+
+- etl_vocabularies_other:
+  Names of specific clinical questionnaires, scales, or frailty indicators.
+
+- publications:
+  List of academic papers cited in the text.
+  - 'resource_title': Title.
+  - 'doi': DOI string.
+
+- funding_sources:
+  Names of organizations providing financial support.
+
+- funding_scheme:
+  Names of specific grant programs or subsidy schemes.
+
+- funding_statement:
+  The sentence acknowledging the funding.
+"""
+# ---------- PASS M: Documentation, Legislation & Dates ----------
+[task_docs_legislation_dates]
+template_json = """
+{
+  "citation_requirements": "string",
+  "acknowledgements": "string",
+  "provenance_statement": "string",
+  "documentation": [
+    {
+      "name": "string",
+      "resource": "string"
+    }
+  ],
+  "internal_identifiers": [
+    {
+      "resource": "string",
+      "identifier": "string"
+    }
+  ],
+  "external_identifiers": [
+    {
+      "resource": "string",
+      "identifier": "string"
+    }
+  ],
+  "supplementary_information": "string",
+  "theme": ["string"],
+  "applicable_legislation": ["string"],
+  "collection_start_planned": "string",
+  "collection_start_actual": "string",
+  "analysis_start_planned": "string",
+  "analysis_start_actual": "string"
+}
+"""
+
+instructions = """
+Extract metadata regarding Identifiers, Documentation, Legislation, and Dates.
+
+- citation_requirements: Instructions on how to cite the article.
+- acknowledgements: The verbatim statement from the 'Acknowledgements' section.
+- provenance_statement: Statements regarding data custody.
+
+- documentation:
+  List of administrative documents.
+  - 'name': The name of the document (e.g. "Protocol", "Consent Form").
+  - 'resource': URL or 'Available on website'.
+
+- internal_identifiers:
+  List identifiers assigned BY the resource owner/institute itself.
+  - 'resource': Name of the issuer (e.g. "UMCG", "Radboud UMC").
+  - 'identifier': The ID string (e.g. "UMCG-1234").
+
+- external_identifiers:
+  List identifiers assigned by EXTERNAL registries or databases.
+  - 'resource': Name of the external database (e.g. "ClinicalTrials.gov", "BBMRI", "EUPASS").
+  - 'identifier': The ID string (e.g. "NCT01234567").
+
+- supplementary_information: Relevant notes on access.
+- theme: Keywords describing the medical domain from Title/Abstract.
+- applicable_legislation: Names of legal acts (e.g. "GDPR", "WMO").
+- collection_start_planned: Date explicitly described as planned.
+- collection_start_actual: The year recruitment started.
+- analysis_start_planned: Date analysis was planned.
+- analysis_start_actual: Date analysis actually started.
+"""
+
+# ---------- PASS N: Content, Methods & Results ----------
+[task_study_content]
+template_json = """
+{
+  "data_sources": ["string"],
+  "medical_conditions_studied": ["string"],
+  "data_extraction_date": "string",
+  "analysis_plan": "string",
+  "objectives": "string",
+  "results": "string"
+}
+"""
+
+instructions = """
+Extract study content, methodology, and results.
+
+**STRICT RULES:**
+1. **Focus:** Extract information about THIS specific study/biobank only.
+2. **Exclusion:** Do NOT extract information about other studies mentioned for comparison.
+
+- data_sources:
+  List the specific names or types of data sources used to generate the data in THIS study.
+  **Search Strategy:** Look in the 'Methods' section for "Electronic Health Records", "Registries", "Questionnaires".
+  **Constraint:** STRICTLY EXCLUDE other biobanks or studies mentioned in the 'Discussion' section (e.g. do not list BOSOM, Radboud, or Parelsnoer).
+
+- medical_conditions_studied:
+  List the specific diseases, phenotypes, or medical conditions investigated.
+
+- data_extraction_date:
+  The specific date when data was retrieved or locked for analysis.
+  **Search Strategy:** Look for "Data were extracted on...", "As of [Date]", "Database lock".
+
+- analysis_plan:
+  A brief summary of the statistical methods or analysis strategy used.
+
+- objectives:
+  The primary goal or aim of the study (Introduction/Abstract).
+
+- results:
+  A summary of the main findings or conclusions (Abstract/Discussion).
+"""
