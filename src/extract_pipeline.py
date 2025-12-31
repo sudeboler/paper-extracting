@@ -1,19 +1,21 @@
 from __future__ import annotations
+
 import logging
 import re
 import json
 from typing import Optional, Dict, Any, List
+
 from pypdf import PdfReader
 
-# GOED (zonder punt)
 from llm_client import OpenAICompatibleClient
-# Probeer grammar te laden, maar faal niet als het mist
+
 try:
     from .llm_grammar import GRAMMAR_JSON_INT_OR_NULL
 except Exception:
     GRAMMAR_JSON_INT_OR_NULL = None  # type: ignore
 
 log = logging.getLogger(__name__)
+
 
 # ---------- PDF Handling ----------
 
@@ -29,7 +31,7 @@ def load_pdf_text(path: str, max_pages: Optional[int] = None) -> str:
 
     pages = reader.pages[:max_pages] if max_pages else reader.pages
     texts: List[str] = []
-    
+
     for i, p in enumerate(pages):
         try:
             extracted = p.extract_text()
@@ -37,9 +39,9 @@ def load_pdf_text(path: str, max_pages: Optional[int] = None) -> str:
                 texts.append(extracted)
         except Exception as e:
             log.warning("Page %d could not be extracted: %s", i + 1, e)
-            
-    full_text = "\n\n".join(texts)
-    return full_text
+
+    return "\n\n".join(texts)
+
 
 # ---------- Helpers ----------
 
@@ -47,17 +49,26 @@ def _json_load_stripping_fences(s: str) -> Dict[str, Any]:
     """Parse JSON from LLM output, handling markdown code fences."""
     if not s:
         return {}
-    s = s.strip()
-    # Remove ```json ... ``` fences
-    if "```" in s:
-        s = re.sub(r"^```[a-zA-Z]*\n", "", s)
-        s = re.sub(r"\n```$", "", s)
-    
+    t = s.strip()
+
+    # Strip triple-backtick fences, if present anywhere
+    # Example:
+    # ```json
+    # { ... }
+    # ```
+    if "```" in t:
+        # remove leading fence
+        t = re.sub(r"^\s*```[a-zA-Z0-9_-]*\s*\n", "", t)
+        # remove trailing fence
+        t = re.sub(r"\n\s*```\s*$", "", t)
+        t = t.strip()
+
     try:
-        return json.loads(s)
+        return json.loads(t)
     except json.JSONDecodeError as e:
-        log.debug(f"JSON Decode Error: {e}. Raw output: {s[:100]}...")
+        log.debug("JSON Decode Error: %s. Raw output head: %r", e, t[:300])
         return {}
+
 
 def _build_nuextract_prompt(
     template_json: str,
@@ -67,26 +78,20 @@ def _build_nuextract_prompt(
     """Construct the prompt strictly following NuExtract format."""
     template_json = (template_json or "").strip()
     instr = (instructions or "").strip()
-    
+
     blocks = []
-    # NuExtract expects the template first
     if template_json:
         blocks += ["# Template:", template_json]
-    # Then instructions
     if instr:
         blocks += ["# Instructions:", instr]
-    # Then the context (paper text)
     if paper_text:
         blocks += ["# Context:", paper_text]
-        
+
     return "\n".join(blocks)
 
+
 def _merge_json_results(acc: Dict[str, Any], cur: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Merge JSON results. 
-    - Lists are concatenated and deduplicated.
-    - Strings/Numbers are overwritten by the new value if not None.
-    """
+    """Merge JSON results."""
     if not acc:
         return dict(cur)
     if not cur:
@@ -94,33 +99,29 @@ def _merge_json_results(acc: Dict[str, Any], cur: Dict[str, Any]) -> Dict[str, A
 
     for k, v in cur.items():
         if v is None:
-            continue # Don't overwrite existing data with null
-            
+            continue
+
         if k not in acc:
             acc[k] = v
             continue
-            
+
         existing = acc[k]
 
-        # Merge Lists
         if isinstance(existing, list) and isinstance(v, list):
-            # Create a combined list, deduplicating by string representation
             combined = existing + v
             seen = set()
             deduped = []
             for item in combined:
-                # Make simple types hashable for deduplication
                 key = str(item).lower().strip() if isinstance(item, str) else str(item)
                 if key not in seen:
                     seen.add(key)
                     deduped.append(item)
             acc[k] = deduped
-            
-        # Overwrite scalars (Pass B/C takes precedence over Pass A if they overlap)
         else:
             acc[k] = v
-            
+
     return acc
+
 
 # ---------- Main Extraction Function ----------
 
@@ -134,16 +135,15 @@ def extract_fields(
     temperature: float = 0.0,
     max_tokens: int = 1024,
 ) -> Dict[str, Any]:
-    """
-    Execute a single extraction pass using the LLM.
-    """
+    """Execute a single extraction pass using the LLM."""
     if not paper_text:
         return {}
 
-    # Build the strict prompt
-    prompt = _build_nuextract_prompt(template_json, instructions, paper_text)
-    
-    # System message for stability
+    prompt = _build_nuextract_prompt(template_json or "", instructions, paper_text)
+
+    # Useful debug: prompt size
+    log.info("Prompt size: %d chars (max_tokens=%d, temp=%.2f)", len(prompt), max_tokens, float(temperature))
+
     system_msg = (
         "You are NuExtract. Extract structured data as JSON only. "
         "Do not output markdown fences or explanations."
@@ -154,7 +154,6 @@ def extract_fields(
         {"role": "user", "content": prompt},
     ]
 
-    # Call LLM
     try:
         raw_response = client.chat(
             messages,
@@ -163,8 +162,7 @@ def extract_fields(
             grammar=(GRAMMAR_JSON_INT_OR_NULL if use_grammar else None),
         )
     except Exception as e:
-        log.error(f"LLM Call failed: {e}")
+        log.error("LLM Call failed: %s", e)
         return {}
 
-    # Parse and return
     return _json_load_stripping_fences(raw_response)
