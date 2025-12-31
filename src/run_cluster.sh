@@ -37,7 +37,7 @@ else
   echo "   module load Python/3.10.4-GCCcore-11.3.0"
   echo "   python3 -m venv .venv"
   echo "   source .venv/bin/activate"
-  echo "   pip install pandas openpyxl requests tomli"
+  echo "   pip install pandas openpyxl requests tomli pypdf"
   exit 1
 fi
 
@@ -56,11 +56,7 @@ echo "[0/4] Runtime config maken met base_url via Load Balancer..."
 RUNTIME_CFG="${PWD}/config.runtime.toml"
 cp -f "config.toml" "$RUNTIME_CFG"
 
-# Vervang base_url binnen de llm-sectie (simpele, praktische aanpak).
-# Verwacht een regel zoals: base_url = "http://..."
-# Als jouw config anders is opgebouwd, pas deze sed aan.
 sed -i -E "s|^(base_url[[:space:]]*=[[:space:]]*\").*(\"[[:space:]]*)$|\1http://127.0.0.1:${PORT_LB}/v1\2|g" "$RUNTIME_CFG"
-
 export PDF_EXTRACT_CONFIG="$RUNTIME_CFG"
 
 echo "[1/4] Starten Load Balancer..."
@@ -134,10 +130,12 @@ start_server 1 "$MODEL_GPU1" "$PORT_GPU1" "$LOG_DIR/gpu1.log"
 wait_health() {
   local port="$1"
   echo -n "  ⏳ Wachten op poort $port..."
-  for i in {1..60}; do
-    if curl -s "http://127.0.0.1:${port}/health" >/dev/null; then
-      echo " ✅ OK"
-      return 0
+  for i in {1..180}; do
+    if curl -s "http://127.0.0.1:${port}/health" >/dev/null 2>&1; then
+      if curl -s "http://127.0.0.1:${port}/v1/models" >/dev/null 2>&1; then
+        echo " ✅ OK"
+        return 0
+      fi
     fi
     sleep 2
     echo -n "."
