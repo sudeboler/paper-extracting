@@ -196,12 +196,12 @@ Extract population details.
   Do NOT reuse total study size. Do NOT count data records or GP practices.
 
 - part_of_networks:
-  Only include if the text says the study is PART OF / MEMBER OF a named network/consortium.
-  Do NOT include parent projects (e.g. ELSPAC) unless explicit membership is stated.
+  Return [] unless the text explicitly says "part of", "member of", "network/consortium member".
+  If a parent initiative/design name is mentioned WITHOUT explicit membership wording, do NOT include it.
 
 - population_entry:
-  The ENTRY TRIGGER event (e.g. "presentation to GP with stable chest pain", "pregnancy with EDD...").
-  Do NOT restate target population labels.
+  Must be an EVENT/PROCESS (invited, enrolled, baseline questionnaire completed, first GP visit, diagnosis).
+  If you only find eligibility/location criteria (e.g. "living in Coevorden"), return [].
 
 - population_exit:
   Only if explicit (e.g. "withdrawal of consent", "lost to follow-up").
