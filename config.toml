@@ -215,6 +215,7 @@ Extract population details.
 """
 
 # ---------- PASS E: Access & Governance ----------
+
 [task_access]
 template_json = """
 {
@@ -238,11 +239,16 @@ template_json = """
 """
 
 instructions = """
-Extract only if explicitly stated; otherwise return null or [] (not empty string).
+Extract only if explicitly stated in the paper; otherwise return null or [] (not empty string).
+Do NOT infer, assume, or use general research practice knowledge.
+
+IMPORTANT:
+- Open access article ≠ open access data. Only mark "Open access" if data access is explicitly stated.
+- Do NOT assume pseudonymization, anonymization, DUA, ethics approval, or fees unless explicitly described.
 
 - informed_consent_type:
-  "Written" if signed consent form.
-  "Opt-out" if non-response = included.
+  "Written" if signed consent form is explicitly mentioned.
+  "Opt-out" if non-response = included is explicitly described.
 
 - informed_consent_required:
   "Yes" if Written OR Opt-out consent model is used.
@@ -250,22 +256,23 @@ Extract only if explicitly stated; otherwise return null or [] (not empty string
 
 - access_rights:
   One of: "Open access", "Supported access", "Restricted", "Not specified".
-  If not stated → "Not specified".
+  Use "Not specified" if the paper does not describe a data access model.
 
 - data_access_conditions:
-  Steps/requirements to obtain access (e.g. proposal, committee approval, DUA).
+  Steps/requirements to obtain access (e.g. proposal, committee approval, DUA) ONLY if explicitly described.
 
 - data_use_conditions:
-  Conditions on use/publication/sharing (e.g. cite correctly, no re-identification).
-  Do NOT include process steps like dataset creation or analysis support.
+  Conditions on use/publication/sharing (e.g. cite correctly, no re-identification) ONLY if explicitly stated.
+  Do NOT include best practices, ethical norms, or assumed restrictions.
 
 - access_identifiable_data:
-  If pseudonymized/coded/privacy protected → "No".
-  Only "Yes" if explicitly stated.
+  "Yes" only if explicitly stated that identifiable data can be accessed.
+  "No" only if explicitly stated that data are anonymized/pseudonymized/coded.
+  Otherwise: null.
 
 - access_identifiable_data_route:
-  If access_identifiable_data="No" and text says pseudonymized/coded → "Pseudonymized".
-  Else null.
+  Only fill if access_identifiable_data="No" AND the route (e.g. "Pseudonymized") is explicitly stated.
+  Otherwise: null.
 """
 
 
