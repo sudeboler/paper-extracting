@@ -163,7 +163,6 @@ instructions = """
 - description:
   Copy the "Aim" or "Objective" sentence verbatim.
 """
-
 # ---------- PASS D: Population & Samples (STRICT LOGIC) ----------
 [task_population]
 template_json = """
@@ -188,29 +187,35 @@ template_json = """
 """
 
 instructions = """
-Extract population details.
+Extract population details (verbatim where possible).
+
+- underlying_population:
+  Who the base source population is (1 sentence).
+
+- population_of_interest:
+  Target participant groups (short phrases).
+
+- population_entry:
+  ENTRY TRIGGER/EVENT only (start with a verb): e.g. "invited and completed baseline questionnaire", "presented to GP with stable chest discomfort and GP decided further evaluation".
+  Do NOT repeat target population text. If not explicit -> [].
+
+- population_exit:
+  Only explicit stop criteria (e.g. "withdraw consent", "death"). 
+  Do NOT use "lost to follow-up/untraceable" unless paper says this is an exit rule. If not explicit -> [].
 
 - number_of_participants_with_samples:
-  Count of individuals with stored **PHYSICAL BIOLOGICAL SAMPLES** (e.g. Blood, DNA, Urine, Tissue) for future research.
-  If NO biological samples are collected or stored, return null.
-  Do NOT infer or reuse the total study sample size.
-  Do NOT count "data records" as samples.
-  Do NOT count "GP practices" as samples.
+  Count with stored physical biosamples. If none -> null. Never reuse n_included.
 
 - part_of_networks:
-  List formal research networks explicitly named in the text.
-  **Constraint:** If no specific network consortium is named, return []. 
-  (Do not guess).
+  Explicit named consortia only, else [].
 
 - population_disease:
-  List **ALL** primary disease categories mentioned.
-  - If the study targets multiple conditions (e.g. "CVD" AND "Osteoarthritis"), list BOTH.
-  - **Constraint:** Do not list "Oncology" unless the study is specifically about cancer.
+  Primary disease categories only (e.g. "coronary artery disease"). If general population -> [].
 
-- age_max:
-  Maximum age integer.
-  **Logic:** If text says "No upper age limit" or "Adults >=18", return null. Do NOT invent "99".
+- age_min/age_max:
+  Integers only. If only ">=X" -> age_min=X, age_max=null. If sex-specific thresholds -> age_min = lowest.
 """
+
 
 # ---------- PASS E: Access & Governance ----------
 [task_access]
