@@ -1,11 +1,11 @@
 from __future__ import annotations
+
 import os
 import logging
 import json
 import argparse
-from typing import Any, Dict
+from typing import Any, Dict, List
 
-# Zorg dat je pandas hebt geïnstalleerd: pip install pandas openpyxl
 import pandas as pd
 
 try:
@@ -20,71 +20,71 @@ from extract_pipeline import load_pdf_text, extract_fields, _merge_json_results
 # 1. DE OFFICIËLE VOLGORDE (Je Target Excel Headers)
 # ==============================================================================
 OFFICIAL_ORDER = [
-    "rdf type", "fdp endpoint", "ldp membership relation", "hricore", "id", 
-    "pid", "name", "local name", "acronym", "type", "type other", "catalogue type", 
-    "cohort type", "clinical study type", "RWD type", "network type", "website", 
-    "description", "keywords", "internal identifiers.resource", 
-    "internal identifiers.identifier", "external identifiers.resource", 
-    "external identifiers.identifier", "start year", "end year", 
-    "time span description", "contact email", "logo", "logo_filename", "status", 
-    "conforms to", "has member relation", "issued", "modified", "design", 
-    "design description", "design schematic", "design schematic_filename", 
-    "data collection type", "data collection description", "reason sustained", 
-    "record trigger", "unit of observation", "subpopulations.resource", 
-    "subpopulations.name", "collection events.resource", "collection events.name", 
-    "data resources", "part of networks", "number of participants", 
-    "number of participants with samples", "underlying population", 
-    "population of interest", "population of interest other", "countries", 
-    "regions", "population age groups", "age min", "age max", "inclusion criteria", 
-    "other inclusion criteria", "exclusion criteria", "other exclusion criteria", 
-    "population entry", "population entry other", "population exit", 
-    "population exit other", "population disease", "population oncology topology", 
-    "population oncology morphology", "population coverage", 
-    "population not covered", "counts.resource", "counts.age group", 
-    "organisations involved.resource", "organisations involved.id", 
-    "publisher.resource", "publisher.id", "creator.resource", "creator.id", 
-    "people involved.resource", "people involved.first name", 
-    "people involved.last name", "contact point.resource", 
-    "contact point.first name", "contact point.last name", "child networks", 
-    "parent networks", "datasets.resource", "datasets.name", "samplesets.resource", 
-    "samplesets.name", "areas of information", "areas of information rwd", 
-    "quality of life other", "cause of death code other", 
-    "indication vocabulary other", "genetic data vocabulary other", 
-    "care setting other", "medicinal product vocabulary other", 
-    "prescriptions vocabulary other", "dispensings vocabulary other", 
-    "procedures vocabulary other", "biomarker data vocabulary other", 
-    "diagnosis medical event vocabulary other", "data dictionary available", 
-    "disease details", "biospecimen collected", "languages", "multiple entries", 
-    "has identifier", "identifier description", "prelinked", "linkage options", 
-    "linkage possibility", "linked resources.resource", 
-    "linked resources.linked resource", "informed consent type", 
-    "informed consent required", "informed consent other", "access rights", 
-    "data access conditions", "data use conditions", 
-    "data access conditions description", "data access fee", 
-    "access identifiable data", "access identifiable data route", 
-    "access subject details", "access subject details route", "access third party", 
-    "access third party conditions", "access non EU", "access non EU conditions", 
-    "biospecimen access", "biospecimen access conditions", "governance details", 
-    "approval for publication", "release type", "release description", 
-    "number of records", "release frequency", "refresh time", "lag time", 
-    "refresh period", "date last refresh", "preservation", "preservation duration", 
-    "standard operating procedures", "qualification", "qualifications description", 
-    "audit possible", "completeness", "completeness over time", 
-    "completeness results", "quality description", "quality over time", 
-    "access for validation", "quality validation frequency", 
-    "quality validation methods", "correction methods", "quality validation results", 
-    "mappings to common data models.source", 
-    "mappings to common data models.source dataset", 
-    "mappings to common data models.target", 
-    "mappings to common data models.target dataset", "common data models other", 
-    "ETL standard vocabularies", "ETL standard vocabularies other", 
-    "publications.resource", "publications.doi", "funding sources", 
-    "funding scheme", "funding statement", "citation requirements", 
-    "acknowledgements", "provenance statement", "documentation.resource", 
-    "documentation.name", "supplementary information", "theme", 
-    "applicable legislation", "collection start planned", "collection start actual", 
-    "analysis start planned", "analysis start actual", "data sources", 
-    "medical conditions studied", "data extraction date", "analysis plan", 
+    "rdf type", "fdp endpoint", "ldp membership relation", "hricore", "id",
+    "pid", "name", "local name", "acronym", "type", "type other", "catalogue type",
+    "cohort type", "clinical study type", "RWD type", "network type", "website",
+    "description", "keywords", "internal identifiers.resource",
+    "internal identifiers.identifier", "external identifiers.resource",
+    "external identifiers.identifier", "start year", "end year",
+    "time span description", "contact email", "logo", "logo_filename", "status",
+    "conforms to", "has member relation", "issued", "modified", "design",
+    "design description", "design schematic", "design schematic_filename",
+    "data collection type", "data collection description", "reason sustained",
+    "record trigger", "unit of observation", "subpopulations.resource",
+    "subpopulations.name", "collection events.resource", "collection events.name",
+    "data resources", "part of networks", "number of participants",
+    "number of participants with samples", "underlying population",
+    "population of interest", "population of interest other", "countries",
+    "regions", "population age groups", "age min", "age max", "inclusion criteria",
+    "other inclusion criteria", "exclusion criteria", "other exclusion criteria",
+    "population entry", "population entry other", "population exit",
+    "population exit other", "population disease", "population oncology topology",
+    "population oncology morphology", "population coverage",
+    "population not covered", "counts.resource", "counts.age group",
+    "organisations involved.resource", "organisations involved.id",
+    "publisher.resource", "publisher.id", "creator.resource", "creator.id",
+    "people involved.resource", "people involved.first name",
+    "people involved.last name", "contact point.resource",
+    "contact point.first name", "contact point.last name", "child networks",
+    "parent networks", "datasets.resource", "datasets.name", "samplesets.resource",
+    "samplesets.name", "areas of information", "areas of information rwd",
+    "quality of life other", "cause of death code other",
+    "indication vocabulary other", "genetic data vocabulary other",
+    "care setting other", "medicinal product vocabulary other",
+    "prescriptions vocabulary other", "dispensings vocabulary other",
+    "procedures vocabulary other", "biomarker data vocabulary other",
+    "diagnosis medical event vocabulary other", "data dictionary available",
+    "disease details", "biospecimen collected", "languages", "multiple entries",
+    "has identifier", "identifier description", "prelinked", "linkage options",
+    "linkage possibility", "linked resources.resource",
+    "linked resources.linked resource", "informed consent type",
+    "informed consent required", "informed consent other", "access rights",
+    "data access conditions", "data use conditions",
+    "data access conditions description", "data access fee",
+    "access identifiable data", "access identifiable data route",
+    "access subject details", "access subject details route", "access third party",
+    "access third party conditions", "access non EU", "access non EU conditions",
+    "biospecimen access", "biospecimen access conditions", "governance details",
+    "approval for publication", "release type", "release description",
+    "number of records", "release frequency", "refresh time", "lag time",
+    "refresh period", "date last refresh", "preservation", "preservation duration",
+    "standard operating procedures", "qualification", "qualifications description",
+    "audit possible", "completeness", "completeness over time",
+    "completeness results", "quality description", "quality over time",
+    "access for validation", "quality validation frequency",
+    "quality validation methods", "correction methods", "quality validation results",
+    "mappings to common data models.source",
+    "mappings to common data models.source dataset",
+    "mappings to common data models.target",
+    "mappings to common data models.target dataset", "common data models other",
+    "ETL standard vocabularies", "ETL standard vocabularies other",
+    "publications.resource", "publications.doi", "funding sources",
+    "funding scheme", "funding statement", "citation requirements",
+    "acknowledgements", "provenance statement", "documentation.resource",
+    "documentation.name", "supplementary information", "theme",
+    "applicable legislation", "collection start planned", "collection start actual",
+    "analysis start planned", "analysis start actual", "data sources",
+    "medical conditions studied", "data extraction date", "analysis plan",
     "objectives", "results", "mg_draft"
 ]
 
@@ -95,7 +95,7 @@ KEY_MAPPING = {
     # --- Pass A ---
     "pid": "pid",
     "study_name": "name",
-    "local_name": "local name",         
+    "local_name": "local name",
     "study_acronym": "acronym",
     "study_types": "type",
     "cohort_type": "cohort type",
@@ -108,7 +108,7 @@ KEY_MAPPING = {
     "countries": "countries",
     "regions": "regions",
     "population_age_group": "population age groups",
-    "keywords": "keywords",         
+    "keywords": "keywords",
 
     # --- Pass B ---
     "inclusion_criteria": "inclusion criteria",
@@ -116,17 +116,17 @@ KEY_MAPPING = {
     "exclusion_criteria": "exclusion criteria",
     "other_exclusion_criteria": "other exclusion criteria",
     "clinical_study_types": "clinical study type",
-    "type_other": "type other",      
-    "rwd_type": "RWD type",        
-    "network_type": "network type",   
+    "type_other": "type other",
+    "rwd_type": "RWD type",
+    "network_type": "network type",
 
     # --- Pass C ---
     "design": "design",
     "design_description": "design description",
     "data_collection_type": "data collection type",
     "data_collection_description": "data collection description",
-    "description": "description", 
-    "time_span_description": "time span description", 
+    "description": "description",
+    "time_span_description": "time span description",
 
     # --- Pass D ---
     "number_of_participants_with_samples": "number of participants with samples",
@@ -274,7 +274,7 @@ KEY_MAPPING = {
     "provenance_statement": "provenance statement",
     "documentation": "documentation.resource",
     "internal_identifiers": "internal identifiers.resource",
-    "external_identifiers": "external identifiers.resource", 
+    "external_identifiers": "external identifiers.resource",
     "supplementary_information": "supplementary information",
     "theme": "theme",
     "applicable_legislation": "applicable legislation",
@@ -282,7 +282,7 @@ KEY_MAPPING = {
     "collection_start_actual": "collection start actual",
     "analysis_start_planned": "analysis start planned",
     "analysis_start_actual": "analysis start actual",
-    "metadata_issued": "issued",  
+    "metadata_issued": "issued",
     "metadata_modified": "modified",
 
     # --- Pass N ---
@@ -291,9 +291,12 @@ KEY_MAPPING = {
     "data_extraction_date": "data extraction date",
     "analysis_plan": "analysis plan",
     "objectives": "objectives",
-    "results": "results"
+    "results": "results",
 }
 
+# ==============================================================================
+# Helpers
+# ==============================================================================
 def setup_logging(level: str = "INFO"):
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
@@ -307,69 +310,83 @@ def load_config(path: str) -> Dict[str, Any]:
 
 
 def transform_to_official_columns(extracted_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    1. Maakt een dict met ALLE officiële kolommen, gevuld met None.
-    2. Vult de kolommen waarvoor we data hebben (via KEY_MAPPING).
-    """
-    transformed = {}
-    
-    # Stap 1: Zet alles klaar op None (ook de kolommen die we leeg laten)
-    for col in OFFICIAL_ORDER:
-        transformed[col] = None
-
-    # Stap 2: Vul data in waar beschikbaar
+    transformed: Dict[str, Any] = {col: None for col in OFFICIAL_ORDER}
     for extraction_key, official_col in KEY_MAPPING.items():
         if extraction_key in extracted_data:
             val = extracted_data[extraction_key]
             if val is not None:
                 transformed[official_col] = val
-
     return transformed
 
 
 def _print_pretty_json(data: Any) -> None:
-    text = json.dumps(data, indent=2, ensure_ascii=False)
-    print(text)
+    print(json.dumps(data, indent=2, ensure_ascii=False))
 
 
-def save_to_excel(raw_data: Dict[str, Any], filename: str):
+def stem(path: str) -> str:
+    base = os.path.basename(path)
+    return os.path.splitext(base)[0]
+
+
+def merge_multi(combined: Dict[str, Any], label: str, res: Dict[str, Any]) -> Dict[str, Any]:
+    for k, v in res.items():
+        if k not in combined or not isinstance(combined[k], dict):
+            combined[k] = {}
+        combined[k][label] = v
+    return combined
+
+
+def save_multi_to_excel(combined_raw: Dict[str, Any], labels: List[str], filename: str):
     """
-    Slaat data op naar Excel in de EXACTE volgorde van OFFICIAL_ORDER.
-    Lijsten en Dicts worden opgeslagen als JSON strings in de cel.
+    1 rij, maar kolommen zijn per paper gelabeld: "{label} :: {official_col}"
     """
-    # 1. Map data naar officiële kolomnamen
-    mapped_data = transform_to_official_columns(raw_data)
-    
-    # 2. Converteer complexe types (list, dict) naar JSON-strings voor Excel
-    flat_data = {}
-    for k, v in mapped_data.items():
-        if v is None:
-            flat_data[k] = ""
-        elif isinstance(v, (list, dict)):
-            flat_data[k] = json.dumps(v, ensure_ascii=False)
-        else:
-            flat_data[k] = str(v)
-            
-    # 3. DataFrame maken
-    df = pd.DataFrame([flat_data])
-    
-    # 4. Forceer de kolomvolgorde (df.reindex garandeert dat de volgorde klopt, en voegt lege kolommen toe indien nodig)
-    df = df.reindex(columns=OFFICIAL_ORDER)
+    flat_row: Dict[str, Any] = {}
 
-    try:
-        df.to_excel(filename, index=False)
-        logging.getLogger("main").info(f"Excel succesvol opgeslagen: {filename}")
-    except Exception as e:
-        logging.getLogger("main").error(f"Fout bij opslaan Excel: {e}")
+    for label in labels:
+        per_paper = {
+            k: (v.get(label) if isinstance(v, dict) else None)
+            for k, v in combined_raw.items()
+        }
+        mapped = transform_to_official_columns(per_paper)
+
+        for col in OFFICIAL_ORDER:
+            out_col = f"{label} :: {col}"
+            val = mapped.get(col)
+
+            if val is None:
+                flat_row[out_col] = ""
+            elif isinstance(val, (list, dict)):
+                flat_row[out_col] = json.dumps(val, ensure_ascii=False)
+            else:
+                flat_row[out_col] = str(val)
+
+    df = pd.DataFrame([flat_row])
+    df.to_excel(filename, index=False)
+    logging.getLogger("main").info(f"Excel succesvol opgeslagen: {filename}")
 
 
+# ==============================================================================
+# CLI
+# ==============================================================================
 def cli():
     parser = argparse.ArgumentParser(description="Run PDF extraction passes.")
     parser.add_argument(
-        "-p", "--passes", 
-        nargs="+", 
+        "-p", "--passes",
+        nargs="+",
         default=["all"],
         help="Specify passes (A, B, ... N) or 'all'."
+    )
+    parser.add_argument(
+        "--pdfs",
+        nargs="+",
+        default=None,
+        help="One or more PDF paths. Overrides config [pdf].path."
+    )
+    parser.add_argument(
+        "--paper-names",
+        nargs="+",
+        default=None,
+        help="Optional labels (same length as --pdfs). If omitted, uses filename stem."
     )
     parser.add_argument(
         "-o", "--output",
@@ -378,7 +395,7 @@ def cli():
     )
     args = parser.parse_args()
     selected_passes = [p.upper() for p in args.passes]
-    
+
     cfg_path = os.environ.get("PDF_EXTRACT_CONFIG", "config.toml")
     cfg = load_config(cfg_path)
 
@@ -387,7 +404,13 @@ def cli():
 
     llm_cfg = cfg["llm"]
     pdf_cfg = cfg["pdf"]
-    
+
+    pdf_paths = args.pdfs if args.pdfs else [pdf_cfg["path"]]
+    if args.paper_names and len(args.paper_names) != len(pdf_paths):
+        raise SystemExit("--paper-names must have same length as --pdfs")
+
+    labels = args.paper_names if args.paper_names else [stem(p) for p in pdf_paths]
+
     client = OpenAICompatibleClient(
         base_url=llm_cfg.get("base_url", "http://127.0.0.1:8080/v1"),
         api_key=llm_cfg.get("api_key", "sk-local"),
@@ -395,15 +418,12 @@ def cli():
         use_grammar=bool(llm_cfg.get("use_grammar", False)),
     )
 
-    paper_text = load_pdf_text(pdf_cfg["path"], max_pages=pdf_cfg.get("max_pages"))
-    log.info("PDF loaded (%d chars)", len(paper_text))
-
-    def run_pass(name, cfg_section_key):
+    def run_pass(name: str, cfg_section_key: str, paper_text: str):
         task_cfg = cfg.get(cfg_section_key, {})
         if not task_cfg:
             log.warning(f"Sectie '{cfg_section_key}' is leeg of ontbreekt in config!")
             return {}
-            
+
         log.info(f"--- Running {name} ---")
         return extract_fields(
             client, paper_text,
@@ -414,7 +434,6 @@ def cli():
             max_tokens=int(llm_cfg.get("max_tokens", 2048)),
         )
 
-    # Volledige lijst taken
     all_tasks = [
         ("A", "Pass A (Main)", "task_main"),
         ("B", "Pass B (Criteria)", "task_criteria"),
@@ -432,23 +451,29 @@ def cli():
         ("N", "Pass N (Content)", "task_study_content"),
     ]
 
-    merged_results = {}
+    combined_results: Dict[str, Any] = {}
 
-    for code, name, section in all_tasks:
-        if "ALL" in selected_passes or code in selected_passes:
-            res = run_pass(f"{name} [{code}]", section)
-            merged_results = _merge_json_results(merged_results, res)
-        else:
-            log.info(f"Skipping {name} (not selected)")
+    for pdf_path, label in zip(pdf_paths, labels):
+        paper_text = load_pdf_text(pdf_path, max_pages=pdf_cfg.get("max_pages"))
+        log.info("PDF '%s' loaded (%d chars)", pdf_path, len(paper_text))
+
+        per_paper_merged: Dict[str, Any] = {}
+
+        for code, name, section in all_tasks:
+            if "ALL" in selected_passes or code in selected_passes:
+                res = run_pass(f"{name} [{code}] ({label})", section, paper_text)
+                per_paper_merged = _merge_json_results(per_paper_merged, res)
+            else:
+                log.info(f"Skipping {name} (not selected)")
+
+        combined_results = merge_multi(combined_results, label, per_paper_merged)
 
     log.info("--- DONE EXTRACTING ---")
-    
-    # 1. Print rauwe JSON naar de terminal (voor debug/inzicht)
-    print("\n=== RAW EXTRACTED JSON ===")
-    _print_pretty_json(merged_results)
-    
-    # 2. Opslaan naar Excel
-    save_to_excel(merged_results, args.output)
+
+    print("\n=== RAW EXTRACTED JSON (MULTI) ===")
+    _print_pretty_json(combined_results)
+
+    save_multi_to_excel(combined_results, labels, args.output)
 
 
 if __name__ == "__main__":

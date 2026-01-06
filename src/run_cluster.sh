@@ -18,11 +18,19 @@ NGL=999
 LOG_DIR="${PWD}/logs"
 mkdir -p "$LOG_DIR"
 
-DEFAULT_CMD=(python3 src/main.py -p all -o final_result.xlsx)
+# ------------------------------------------------------------------------------
+# CLI passthrough:
+# - run without args => defaults to main.py -p all -o final_result.xlsx
+# - run with args    => forwards args to main.py
+# Example:
+#   bash src/run_cluster.sh
+#   bash src/run_cluster.sh -p A -o out.xlsx --pdfs data/concrete.pdf data/oncolifes.pdf
+# ------------------------------------------------------------------------------
+DEFAULT_ARGS=(-p all -o final_result.xlsx)
 if [[ $# -gt 0 ]]; then
-  RUN_CMD=("$@")
+  RUN_ARGS=("$@")
 else
-  RUN_CMD=("${DEFAULT_CMD[@]}")
+  RUN_ARGS=("${DEFAULT_ARGS[@]}")
 fi
 
 if command -v module >/dev/null 2>&1; then
@@ -212,6 +220,6 @@ LB_PID=$!
 
 echo "[4/4] Starten main.py (PDF extractie → Excel)..."
 echo "  PDF_EXTRACT_CONFIG=$PDF_EXTRACT_CONFIG"
-"${RUN_CMD[@]}"
+python3 src/main.py "${RUN_ARGS[@]}"
 
 echo "✅ Klaar."

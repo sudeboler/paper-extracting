@@ -40,9 +40,9 @@ template_json = """
 instructions = """
 Extract exact values.
 
-- study_name: 
-  The official name of the registry or intervention (e.g. "Midwifery Case Registration System").
-  **Constraint:** Do NOT return the title of the academic paper.
+- study_name:
+  Official name of the study/cohort/program.
+  HARD: If only the paper title is found, return null. Do not invent.
 
 - local_name: 
   The name in the local national language (e.g. Dutch names) if explicitly mentioned.
@@ -71,8 +71,9 @@ Extract exact values.
   Specific provinces (e.g. "Noord-Holland", "Groningen", "Limburg"). List ALL mentioned.
 
 - population_age_group:
-  Specific range (e.g. "16-49 years" or "Men >40 / Women >45").
-  **Constraint:** Do not default to ">=18" if a specific range is written.
+  Copy exact age wording from paper.
+  HARD: Do not infer. If not explicit, return null.
+
 """
 
 # ---------- PASS B: Criteria & Design ----------
