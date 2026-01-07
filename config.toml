@@ -465,6 +465,14 @@ Extract quality control details.
   - audit trail
   - full audit-trail support
   Otherwise false. Do NOT infer from ISO certification alone.
+
+- quality_marks:
+  List explicit formal standards/certifications mentioned (e.g., ISO 9001, FAIR).
+  If none mentioned -> [].
+
+- For boolean fields (qualification, audit_possible, access_for_validation):
+  If the paper does NOT explicitly mention it, return null (do not default to false).
+  Return false ONLY if the text explicitly states it is not possible / not done / not available.
 """
 
 
