@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --nodes=1
-#SBATCH --time=04:00:00
+#SBATCH --time=00:30:00
 #SBATCH --output=logs/batch_%j.out
 #SBATCH --error=logs/batch_%j.err
 
