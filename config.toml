@@ -467,7 +467,7 @@ Extract quality control details.
   Otherwise false. Do NOT infer from ISO certification alone.
 
 - quality_marks:
-  List explicit formal standards/certifications mentioned (e.g., ISO 9001, FAIR).
+  List explicit formal standards/certifications mentioned.
   If none mentioned -> [].
 
 - For boolean fields (qualification, audit_possible, access_for_validation):
