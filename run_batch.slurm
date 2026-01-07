@@ -22,7 +22,7 @@ module load CUDA/12.2.0
 module load Python/3.10.4-GCCcore-11.3.0
 
 # --- env ---
-export WORKDIR="/groups/umcg-gcc/tmp02/users/umcg-usboler"
+export WORKDIR="/groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories"
 export CUDA_HOME=${CUDA_HOME:-/usr/local/cuda}
 
 # --- go to project ---
