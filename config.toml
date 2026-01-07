@@ -390,7 +390,7 @@ template_json = """
 """
 
 instructions = """
-Extract logistics.
+Extract biobank / biospecimen logistics ONLY if explicitly stated in the text. Do NOT infer or guess.
 
 IMPORTANT GATING RULE:
 If the study does NOT collect or store biological samples,
@@ -398,7 +398,31 @@ then:
 - biospecimen_access = false
 - ALL other fields in this block MUST be null.
 Do NOT infer biobank logistics from data-only studies.
+
+General output rules:
+- If a field is not explicitly mentioned, return null (for scalars/booleans) or [] (for lists).
+- Do NOT output placeholder strings such as "Not specified", "Unknown", "N/A". Use null/[] instead.
+
+Field-specific rules:
+- biospecimen_access:
+  true only if the paper explicitly states that biological samples are collected and stored.
+
+- biospecimen_access_conditions:
+  Copy the conditions/description verbatim or near-verbatim from the text (1–2 sentences max). If not stated -> null.
+
+- approval_for_publication:
+  true ONLY if the paper explicitly states that publication of results using the data requires prior approval (e.g. "must be approved by", "Executive Committee approval required before submission").
+  If only a publication policy / acknowledgement requirement is mentioned without approval wording -> null.
+
+- number_of_records:
+  Return ONLY if the paper explicitly states the number of stored biospecimen records or samples (e.g. "X samples stored", "X aliquots", "X specimens").
+  Do NOT use number of participants, cohort size, invitations, or enrolled subjects.
+  If not explicitly stated -> null.
+
+- refresh_period / release_frequency_months / refresh_time_days / lag_time_days / date_last_refresh:
+  Fill ONLY if explicitly stated. Otherwise null (or [] for refresh_period).
 """
+
 
 # ---------- PASS I: Quality & SOPs ----------
 [task_quality]
