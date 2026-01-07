@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LLAMA_BIN="/groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/llama.cpp/build/bin/llama-server"
-MODEL_PATH="/groups/umcg-gcc/tmp02/users/umcg-pjansma/Models/GGUF/Qwen2.5-32B-Instruct/Qwen2.5-32B-Instruct-Q4_K_M.gguf"
+LLAMA_BIN="/groups/umcg-gcc/tmp02/users/umcg-usboler/Repositories/llama.cpp/build/bin/llama-server"
+MODEL_PATH="/groups/umcg-gcc/tmp02/users/umcg-usboler/Models/GGUF/Qwen2.5-32B-Instruct-Q4_K_M.gguf"
 
 MODEL_GPU0="$MODEL_PATH"
 MODEL_GPU1="$MODEL_PATH"
@@ -17,7 +17,6 @@ NGL=999
 
 LOG_DIR="${PWD}/logs"
 mkdir -p "$LOG_DIR"
-
 # ------------------------------------------------------------------------------
 # CLI passthrough:
 # - run without args => defaults to main.py -p all -o final_result.xlsx
