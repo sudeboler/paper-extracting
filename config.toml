@@ -388,7 +388,6 @@ template_json = """
   "preservation_duration_years": "integer"
 }
 """
-
 instructions = """
 Extract biobank / biospecimen logistics ONLY if explicitly stated in the text. Do NOT infer or guess.
 
@@ -399,29 +398,29 @@ then:
 - ALL other fields in this block MUST be null.
 Do NOT infer biobank logistics from data-only studies.
 
-General output rules:
-- If a field is not explicitly mentioned, return null (for scalars/booleans) or [] (for lists).
-- Do NOT output placeholder strings such as "Not specified", "Unknown", "N/A". Use null/[] instead.
-
-Field-specific rules:
-- biospecimen_access:
-  true only if the paper explicitly states that biological samples are collected and stored.
-
+Targeted rules for this block:
 - biospecimen_access_conditions:
-  Copy the conditions/description verbatim or near-verbatim from the text (1–2 sentences max). If not stated -> null.
+  If the paper explicitly describes collected biological samples and storage (e.g. blood, urine, DNA, aliquots, long-term storage),
+  copy 1–2 sentences verbatim or near-verbatim. If not stated -> null.
 
-- approval_for_publication:
-  true ONLY if the paper explicitly states that publication of results using the data requires prior approval (e.g. "must be approved by", "Executive Committee approval required before submission").
-  If only a publication policy / acknowledgement requirement is mentioned without approval wording -> null.
+- governance_details:
+  If the paper explicitly describes access procedure, proposal process, executive committee, or supported access model,
+  copy 1–2 sentences verbatim or near-verbatim. If not stated -> null.
 
-- number_of_records:
-  Return ONLY if the paper explicitly states the number of stored biospecimen records or samples (e.g. "X samples stored", "X aliquots", "X specimens").
-  Do NOT use number of participants, cohort size, invitations, or enrolled subjects.
-  If not explicitly stated -> null.
+- release_type:
+  If the paper explicitly states an access model (e.g. "supported access", "open access"), return that string. Else -> null.
 
-- refresh_period / release_frequency_months / refresh_time_days / lag_time_days / date_last_refresh:
-  Fill ONLY if explicitly stated. Otherwise null (or [] for refresh_period).
+- release_description:
+  If the paper explicitly describes how access is obtained, summarise in 1 short sentence. Else -> null.
+
+- preservation_indefinite:
+  Return true if the paper explicitly mentions "long-term storage", "stored indefinitely", or equivalent. Else -> null.
+
+General rule:
+- If a field is not explicitly stated in the text, return null (or [] for lists).
+- Do NOT output placeholder strings such as "Not specified", "Unknown", "N/A".
 """
+
 
 
 # ---------- PASS I: Quality & SOPs ----------
