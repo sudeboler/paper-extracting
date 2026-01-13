@@ -241,27 +241,39 @@ Extract population details.
 
 - number_of_participants_with_samples:
   Count of individuals with stored PHYSICAL BIOLOGICAL SAMPLES (Blood, DNA, Urine, Tissue).
+  Return ONLY if the text explicitly states a number of participants who provided or have stored biological samples.
   If NO explicit stored samples count is given, return null.
-  Do NOT reuse total study size. Do NOT count data records or GP practices.
+  Do NOT reuse total study size. Do NOT infer. Do NOT guess.
 
 - part_of_networks:
-  Return [] unless the text explicitly says "part of", "member of", "network/consortium member".
+  Return [] unless the text explicitly says "part of", "member of", "network member", or "consortium member".
   If a parent initiative/design name is mentioned WITHOUT explicit membership wording, do NOT include it.
 
 - population_entry:
   Must be an EVENT/PROCESS (invited, enrolled, baseline questionnaire completed, first GP visit, diagnosis).
-  If you only find eligibility/location criteria (e.g. "living in Coevorden"), return [].
+  If you only find eligibility or location criteria (e.g. "living in Coevorden"), return [].
 
 - population_exit:
-  Only if explicit (e.g. "withdrawal of consent", "lost to follow-up").
+  Return ONLY if an explicit exit event is described (e.g. "withdrawal of consent", "lost to follow-up", "dropped out").
   If not explicit, return [].
 
 - population_disease:
-  List ALL primary disease categories mentioned. If none, [].
+  List ALL primary disease categories mentioned.
+  If none are explicitly stated, return [].
+
+- age_min:
+  Return ONLY if an explicit minimum age is stated (e.g. "≥16 years", "aged 7–17 years").
+  If not explicitly stated, return null. Do NOT infer.
 
 - age_max:
-  If "no upper limit" or ">=X", return null. Do NOT invent.
+  Return ONLY if an explicit maximum age is stated.
+  If "no upper limit" or only "≥X" is given, return null. Do NOT invent.
+
+- population_coverage / population_not_covered:
+  Return ONLY if explicitly described in the text.
+  If not stated, return null. Do NOT use placeholders such as "unspecified", "unknown", or similar.
 """
+
 
 # ---------- PASS E: Access & Governance ----------
 
