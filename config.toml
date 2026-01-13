@@ -449,11 +449,11 @@ instructions = """
 Extract quality control details. Do NOT infer.
 
 - standard_operating_procedures:
-  Return true if the text explicitly mentions SOP, protocol, guidelines, CONSORT, Declaration of Helsinki, WMO, ethics approval, ethics committee, IRB.
+  Return true if the text contains (case-insensitive) any of these words: "sop", "protocol", "guideline", "consort", "helsinki", "wmo", or "ethic".
   Otherwise return null.
 
 - audit_possible:
-  Return true ONLY if the text explicitly contains the word "audit" or "auditing" or "audit trail".
+  Return true ONLY if the text contains (case-insensitive) the word "audit" (any form).
   Return false ONLY if the text explicitly states auditing is not possible / not done / not available.
   Otherwise return null.
 
