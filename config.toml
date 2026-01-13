@@ -466,6 +466,7 @@ Extract quality control details. Do NOT infer.
   If the paper does NOT explicitly mention it, return null.
   Return false ONLY if the text explicitly states it is not possible / not done / not available.
 """
+
 # ---------- PASS J: Linkage & Specs ----------
 [task_linkage_specs]
 template_json = """
@@ -496,12 +497,11 @@ instructions = """
   Otherwise return null.
 
 - has_identifier:
-  Return true ONLY if the paper explicitly mentions a unique participant ID, study number, or unique code.
+  Return true ONLY if the text explicitly states a unique participant ID or unique code.
   Otherwise return null.
 
 - identifier_description:
-  If has_identifier = true, copy the exact phrase from the paper describing the identifier.
-  Otherwise return null.
+  Copy the exact phrase from the paper; otherwise null.
 
 - prelinked:
   Return true ONLY if the paper explicitly states data are already linked.
@@ -512,17 +512,14 @@ instructions = """
   Otherwise return null.
 
 - linkage_possibility:
-  Return true if the text explicitly uses "link", "linkage", or "linked" in the context of combining records/sources.
+  Return true ONLY if the text explicitly states that records or data are linked or can be linked.
   Return false ONLY if explicitly stated linkage is not possible.
   Otherwise return null.
 
-
 - linked_resources_names:
-  List ONLY explicitly named registries or databases (proper names).
-  If the mention is generic (e.g., "GP medical records", "medical records", "hospital records"), return [].
-
+  List ONLY proper names of registries or databases.
+  If the name is not a proper name, return [].
 """
-
 
 
 # ---------- PASS K: Triggers ----------
