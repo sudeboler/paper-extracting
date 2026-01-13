@@ -508,8 +508,9 @@ instructions = """
   Otherwise return null.
 
 - linkage_options:
-  If multiple sources are listed, join them into a single string separated by "; ".
-  Otherwise return null.
+  Include ONLY names of external databases/registries/data sources that can be linked.
+  Do NOT include outcomes/variables (e.g., survival).
+  If multiple sources are listed, join with "; ". Otherwise null.
 
 - linkage_possibility:
   Return true ONLY if the text explicitly states that records or data are linked or can be linked.
