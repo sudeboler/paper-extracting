@@ -181,16 +181,31 @@ instructions = """
   - "Clinical assessments"
   - "Record linkage"
   If multiple apply, list all that are explicitly mentioned.
+
   IMPORTANT:
-  - Use "Clinical assessments" ONLY if the text explicitly says assessments/examinations/measurements were performed as part of the study (not just "clinical data" from routine care).
-  - Use "Extraction from Electronic Patient Files" ONLY if the text explicitly mentions extraction from an EHR/EMR/GP dossier/hospital record system.
-  - Use "Record linkage" ONLY if the text explicitly mentions linkage/linked to health or administrative records/registries.
+  - Use "Clinical assessments" ONLY if the paper explicitly mentions study assessment visits or assessments/examinations/measurements being performed as part of the study protocol 
+    (e.g., "assessment visit", "clinical assessment visit", "physical examination", "measured", "performed assessments").
+  - Do NOT output "Clinical assessments" for phrases like "clinical data", "routine clinical care", or "clinical data collected by physicians".
+  - Use "Extraction from Electronic Patient Files" ONLY if the paper explicitly states data were extracted from an electronic health record, EMR, EHR, GP dossier, electronic patient dossier, or hospital record system.
+  - If the paper uses wording like "linkage", "linked to", "record linkage", "administrative records", "registry linkage" WITHOUT explicit EHR/EMR extraction wording → use "Record linkage" and do NOT use "Extraction from Electronic Patient Files".
+  - Use "Record linkage" ONLY if linkage to external health or administrative records/registries is explicitly stated.
   If none are explicitly mentioned → return [].
+
 
 - data_collection_description:
   Describe HOW data is captured (method/source), not WHEN and not outcomes.
-  Good examples: "Web-based questionnaires", "paper or REDCap questionnaires", "extracted from GP/hospital electronic record", "record linkage to administrative registries", "clinical assessments".
-  Do NOT output sentences that only describe timing (baseline/follow-up months/weeks) or endpoints/outcomes.
+
+  Allowed content:
+  - questionnaire administration (e.g., web-based, paper, REDCap)
+  - extraction from GP/hospital electronic records
+  - record linkage to health or administrative registries
+  - study clinical assessment visits
+
+  HARD CONSTRAINTS:
+  - Do NOT output sentences that only describe timing (e.g., baseline, follow-up weeks/months) or endpoints/outcomes.
+  - Do NOT output treatment descriptions, intervention details, or analysis plans.
+  - Output MUST be a full sentence copied verbatim or near-verbatim from the paper.
+  - Do NOT construct your own summary or comma-separated list.
   If no explicit method/source sentence exists → return null.
 
 - time_span_description:
