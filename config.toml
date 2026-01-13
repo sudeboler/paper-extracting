@@ -562,10 +562,10 @@ GENERAL:
   Do NOT duplicate collection_events_name verbatim.
 
 - collection_events_name:
-  Include baseline, follow-up, questionnaire waves, and clinical assessments if explicitly mentioned.
+  Use human-readable descriptions (e.g. "Baseline visit", "6-month follow-up"), not identifier-style labels.
 
 - collection_events_resource:
-  Use short labels for the same events as in collection_events_name. Do NOT list timepoints separately.
+  Do not list more than 10 events. If more are present, summarize (e.g. "multiple follow-ups").
 
 - data_resources_included:
   List explicit data sources (questionnaires, GP records, registries, clinical assessments) only if stated. Else [].
