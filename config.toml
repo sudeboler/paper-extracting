@@ -512,14 +512,15 @@ instructions = """
   Otherwise return null.
 
 - linkage_possibility:
-  Return true ONLY if explicitly stated linkage is possible.
+  Return true if the text explicitly uses "link", "linkage", or "linked" in the context of combining records/sources.
   Return false ONLY if explicitly stated linkage is not possible.
   Otherwise return null.
 
+
 - linked_resources_names:
-  List ONLY explicitly named registries or databases.
-  Do NOT include generic terms such as "GP records", "medical records", "hospital records".
-  If none -> [].
+  List ONLY explicitly named registries or databases (proper names).
+  If the mention is generic (e.g., "GP medical records", "medical records", "hospital records"), return [].
+
 """
 
 
