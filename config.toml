@@ -156,8 +156,6 @@ Extract eligibility and study type.
   If not explicit → return [].
 
 """
-
-
 # ---------- PASS C: Design & Data Collection ----------
 [task_design_details]
 template_json = """
@@ -183,16 +181,32 @@ instructions = """
   - "Clinical assessments"
   - "Record linkage"
   If multiple apply, list all that are explicitly mentioned.
+  IMPORTANT:
+  - Use "Clinical assessments" ONLY if the text explicitly says assessments/examinations/measurements were performed as part of the study (not just "clinical data" from routine care).
+  - Use "Extraction from Electronic Patient Files" ONLY if the text explicitly mentions extraction from an EHR/EMR/GP dossier/hospital record system.
+  - Use "Record linkage" ONLY if the text explicitly mentions linkage/linked to health or administrative records/registries.
   If none are explicitly mentioned → return [].
 
+- data_collection_description:
+  Describe HOW data is captured (method/source), not WHEN and not outcomes.
+  Good examples: "Web-based questionnaires", "paper or REDCap questionnaires", "extracted from GP/hospital electronic record", "record linkage to administrative registries", "clinical assessments".
+  Do NOT output sentences that only describe timing (baseline/follow-up months/weeks) or endpoints/outcomes.
+  If no explicit method/source sentence exists → return null.
+
+- time_span_description:
+  Describe ONLY the follow-up duration and/or the schedule/timing of data collection (e.g., "baseline and 3, 6, 12 months follow-up", "follow-up for 1 year", "assessments at 6/12/18/24 months").
+  Do NOT include treatment details, analysis plans, endpoints, guidelines, or registry definitions.
+  If no explicit timing is stated → return null.
 
 - description:
   Copy ONE sentence verbatim that explicitly states the Aim/Objectives.
   It must contain an explicit aim cue such as: "aim", "aims", "objective", "objectives", "primary aim", "primary objective", "purpose", "we aim", "this study aims", "the aim of this study".
-  Do NOT use sentences starting with or containing "we hypothesise/hypothesize", "we hypothesize that", "originated", or purely historical/background context.
+  HARD EXCLUSION:
+  - If the candidate sentence contains "hypothes*" (hypothesise/hypothesize/hypothesis) → do NOT use it.
+  - Do NOT use historical/background sentences (e.g., containing "originated").
   If no explicit aim/objective sentence is present → return null.
-
 """
+
 
 # ---------- PASS D: Population & Samples (STRICT LOGIC) ----------
 [task_population]
