@@ -447,7 +447,7 @@ template_json = """
 """
 
 instructions = """
-Extract quality control details.
+Extract quality control details. Do NOT infer.
 
 - standard_operating_procedures:
   Return true if the text explicitly mentions ANY of:
@@ -464,7 +464,9 @@ Extract quality control details.
   - auditing
   - audit trail
   - full audit-trail support
-  Otherwise false. Do NOT infer from ISO certification alone.
+  Return false ONLY if the text explicitly states auditing is not possible / not done / not available.
+  Otherwise return null.
+  Do NOT infer from ISO certification alone.
 
 - quality_marks:
   List explicit formal standards/certifications mentioned.
@@ -474,6 +476,7 @@ Extract quality control details.
   If the paper does NOT explicitly mention it, return null (do not default to false).
   Return false ONLY if the text explicitly states it is not possible / not done / not available.
 """
+
 
 
 # ---------- PASS J: Linkage & Specs ----------
