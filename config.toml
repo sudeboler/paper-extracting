@@ -240,10 +240,9 @@ instructions = """
 Extract population details.
 
 - number_of_participants_with_samples:
-  Return a number ONLY if the paper explicitly links a count to biological samples,
-  e.g. wording like "X participants provided/ donated/ collected/ stored samples" AND the sample type is mentioned (blood/saliva/DNA/urine/tissue).
-  If the paper only states overall cohort size or mentions that samples exist without a specific count -> return null.
-  Do NOT reuse n_included. Do NOT infer.
+  “Samples” = physical biospecimens (blood/saliva/DNA/urine/tissue), not cohort size.
+  Return a number ONLY if a specimen type is named AND the paper states how many individuals provided/collected/stored it; else null.
+  Do NOT infer or reuse n_included.
 
 
 - part_of_networks:
