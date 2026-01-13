@@ -183,7 +183,7 @@ instructions = """
 
   Rules:
   - "Clinical assessments" ONLY if the paper explicitly mentions assessment visits or examinations performed as part of the study protocol.
-    Do NOT use for routine clinical care or "clinical data".
+    Do NOT use for routine clinical care, "clinical data", "clinical records", or "clinical characteristics".
   - "Extraction from Electronic Patient Files" ONLY if the paper explicitly states extraction from EHR/EMR/GP dossier/hospital record system.
   - "Record linkage" ONLY if the paper explicitly says linkage/linked to registries or administrative records.
   If none apply → return [].
@@ -191,6 +191,7 @@ instructions = """
 - data_collection_description:
   Copy ONE full sentence (verbatim or near-verbatim) from the paper that describes the METHOD or SOURCE of data collection
   (e.g. questionnaires, electronic records, linkage, assessments).
+  The sentence MUST contain at least one of: questionnaire, questionnaires, REDCap, online, web-based, electronic, dossier, EHR, record, linkage. Otherwise return null.
 
   Do NOT use sentences that only describe timing (baseline, follow-up weeks/months) or outcomes.
   Do NOT create your own summary or list.
