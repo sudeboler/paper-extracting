@@ -644,7 +644,8 @@ instructions = """
 Extract Dates and Legislation.
 
   - applicable_legislation:
-  List ONLY laws or regulations. Do NOT include coding systems or codes of conduct.
+  Include all explicitly mentioned laws/regulations (can be multiple). Do not return only one if more are listed.
+
 
   - collection_start_planned / collection_start_actual:
   Return a date ONLY if explicitly written in the text; do NOT infer or normalize.
@@ -668,6 +669,11 @@ template_json = """
 
 instructions = """
 Extract Content.
-- data_sources: e.g. "Electronic registration system", "Questionnaires".
+- data_sources:
+  Only list sources explicitly mentioned in the paper. Do NOT reuse sources from other papers.
+- data_extraction_date:
+  Return a date ONLY if the paper explicitly states the data were extracted on that date. Otherwise null.
+- analysis_plan:
+  Only fill if the paper explicitly describes an analysis plan or statistical analysis. Otherwise null.
 - objectives: Primary aim.
 """
