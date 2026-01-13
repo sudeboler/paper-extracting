@@ -670,10 +670,10 @@ template_json = """
 instructions = """
 Extract Content.
 - data_sources:
-  Only list sources explicitly mentioned in the paper. Do NOT reuse sources from other papers.
+  List types of sources (e.g., questionnaires, GP records, registries, clinical assessments, biospecimens). Do NOT return only the study/biobank name as a data source.
 - data_extraction_date:
   Return a date ONLY if the paper explicitly states the data were extracted on that date. Otherwise null.
 - analysis_plan:
-  Only fill if the paper explicitly describes an analysis plan or statistical analysis. Otherwise null.
+  Copy only the explicitly stated "statistical analysis" / "analysis plan" description; do not list methods from multiple sections.
 - objectives: Primary aim.
 """
