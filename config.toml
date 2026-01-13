@@ -45,10 +45,9 @@ Extract exact values only. Do not infer.
   Do NOT use acronym as pid. If none → null.
 
 - resource_type:
-  Use only if one of the allowed resource words is explicitly used to describe the resource
-  (cohort, registry, biobank, clinical trial, database).
-  If it only describes the study design (e.g., "randomized controlled trial") without stating the resource type word → return [].
-  # CHANGED: block RCT-as-design leakage
+  Allowed only: cohort, registry, biobank, clinical trial, database.
+  Do NOT output study design terms such as "randomized controlled trial", "randomised controlled trial", "RCT".
+  If the paper describes an RCT, resource_type may be ["clinical trial"] ONLY if the text explicitly uses the phrase "clinical trial" or clearly labels it as a trial resource; otherwise return [].
 
 - study_name:
   Return ONLY if the text explicitly labels a name as the study/cohort name using wording like:
@@ -83,17 +82,18 @@ Extract exact values only. Do not infer.
   # CHANGED: enforce list consistency (no null)
 
 - population_age_group:
-  Copy literal wording if present (e.g. "Men ≥40, women ≥45"), else null.
+  Copy literal wording if present (e.g. "Age ≥18 years"), else null.
+  Look specifically in Eligibility/Inclusion/Participants/Study population sections for age thresholds.
 
 - keywords:
   Max 10. Only terms that appear verbatim in the text. No generic words.
 
 - start_year / end_year:
-  Return a year ONLY if an explicit calendar year is stated for start/end using wording like:
-  "started in YYYY", "began in YYYY", "ended in YYYY", "from YYYY to YYYY".
+  Return a year ONLY if an explicit calendar year is stated AND it is tied to start/end wording like:
+  "started in YYYY", "began in YYYY", "ended in YYYY", "from YYYY to YYYY", "recruitment started in YYYY".
+  A standalone month+year (e.g., "December 2018") counts ONLY if the text explicitly says started/began/commenced in that month+year.
   Do NOT infer from publication year, ethics approval year, registration date, or planned timelines.
   If not explicit → null.
-  # CHANGED: blocks inferred years
 """
 
 
