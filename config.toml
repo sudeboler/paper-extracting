@@ -522,7 +522,6 @@ instructions = """
   If the name is not a proper name, return [].
 """
 
-
 # ---------- PASS K: Triggers ----------
 [task_triggers_subpops]
 template_json = """
@@ -539,14 +538,39 @@ template_json = """
 """
 
 instructions = """
+Extract triggers, subpopulations, and collection events. Do NOT infer.
+
+GENERAL:
+- If not explicitly stated: return null (strings) or [] (lists).
+- Do NOT output URLs, DOIs, or citation identifiers in any field.
+
+- reason_sustained:
+  Copy 1 sentence describing the purpose/aim of the cohort/registry.
+  Do NOT use recruitment statistics or participation rates.
+
 - record_trigger:
-  The clinical event that adds a PATIENT to the study (e.g. "First consultation", "Diagnosis").
-  **Constraint:** Do not describe how GP offices are recruited.
+  The event/process that adds an individual to the study (e.g., invited, enrolled, consented, baseline questionnaire completed, diagnosis).
+  If the paper is not clinical-care based, do NOT use "First consultation" unless explicitly stated.
 
 - unit_of_observation:
   "Patient" or "Individual".
-  **Constraint:** Even if Cluster Randomized, the unit of observation is usually the Patient.
+
+- subpopulations_name:
+  List explicit subgroups of participants (e.g., age/sex groups, disease subtypes) only if stated. Else [].
+
+- subpopulations_resource:
+  Short textual labels for the same subpopulations (not links). If none -> [].
+
+- collection_events_name:
+  List explicit collection events (baseline visit, follow-up, questionnaire wave) only if stated. Else [].
+
+- collection_events_resource:
+  Short textual labels for the same collection events (not links). If none -> [].
+
+- data_resources_included:
+  List explicit data sources (questionnaires, GP records, registries, clinical assessments) only if stated. Else [].
 """
+
 
 # ---------- PASS L: CDM & Funding ----------
 [task_cdm_funding]
