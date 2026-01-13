@@ -467,9 +467,6 @@ Extract quality control details. Do NOT infer.
   Return false ONLY if the text explicitly states it is not possible / not done / not available.
 """
 
-
-
-
 # ---------- PASS J: Linkage & Specs ----------
 [task_linkage_specs]
 template_json = """
@@ -488,26 +485,44 @@ template_json = """
 
 instructions = """
 - biospecimen_collected:
-  List sample types (Blood, DNA) ONLY if explicitly collected and stored.
-  **Constraint:** If text only mentions "data collection" or "medical records", return [].
+  List ALL biological sample types explicitly mentioned.
+  Do NOT truncate the list. Do NOT assume.
 
 - languages:
   Infer "nl" if study is in Netherlands, "en" if UK/USA.
 
+- multiple_entries:
+  Return true ONLY if the paper explicitly states multiple records per individual.
+  Return false ONLY if explicitly stated single record only.
+  Otherwise return null.
+
 - has_identifier:
-  Return true ONLY if the paper explicitly states that participants or records are assigned a unique, persistent identifier
-  that enables record-level linkage over time.
+  Return true ONLY if the paper explicitly mentions a participant ID, study number, or unique code.
+  Do NOT infer from linkage or registries.
+  Otherwise return null.
 
-  Examples:
-  - explicit subject ID
-  - registry-specific patient identifier
-  - coded identifier enabling longitudinal linkage
+- identifier_description:
+  If has_identifier = true, copy the exact phrase from the paper describing the identifier.
+  Otherwise return null.
 
-  Do NOT return true based solely on:
-  - electronic patient files
-  - anonymized data
-  - publication identifiers (DOI, trial registration number)
+- prelinked:
+  Return true ONLY if the paper explicitly states data are already linked.
+  Otherwise return null.
+
+- linkage_options:
+  Copy the list of linkable sources if explicitly stated.
+  Otherwise return null.
+
+- linkage_possibility:
+  Return true ONLY if explicitly stated linkage is possible.
+  Return false ONLY if explicitly stated linkage is not possible.
+  Otherwise return null.
+
+- linked_resources_names:
+  List linked databases/registries explicitly mentioned.
+  If none -> [].
 """
+
 
 # ---------- PASS K: Triggers ----------
 [task_triggers_subpops]
