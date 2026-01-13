@@ -644,8 +644,6 @@ instructions = """
 Extract Dates and Legislation.
 """
 
-"""
-
 # ---------- PASS N: Content ----------
 [task_study_content]
 template_json = """
