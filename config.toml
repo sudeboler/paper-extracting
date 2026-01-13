@@ -423,7 +423,6 @@ General rule:
 """
 
 
-
 # ---------- PASS I: Quality & SOPs ----------
 [task_quality]
 template_json = """
@@ -450,32 +449,23 @@ instructions = """
 Extract quality control details. Do NOT infer.
 
 - standard_operating_procedures:
-  Return true if the text explicitly mentions ANY of:
-  - "SOP" / "Standard Operating Procedures"
-  - protocol / study protocol
-  - guidelines
-  - "CONSORT" / "Declaration of Helsinki" / "WMO"
-  - ethics approval / ethical approval
-  - ethics committee / Ethics and Law Committee / IRB
+  Return true if the text explicitly mentions SOP, protocol, guidelines, CONSORT, Declaration of Helsinki, WMO, ethics approval, ethics committee, IRB.
+  Otherwise return null.
 
 - audit_possible:
-  Return true ONLY if the text explicitly mentions:
-  - audit
-  - auditing
-  - audit trail
-  - full audit-trail support
+  Return true ONLY if the text explicitly contains the word "audit" or "auditing" or "audit trail".
   Return false ONLY if the text explicitly states auditing is not possible / not done / not available.
   Otherwise return null.
-  Do NOT infer from ISO certification alone.
 
 - quality_marks:
   List explicit formal standards/certifications mentioned.
   If none mentioned -> [].
 
 - For boolean fields (qualification, audit_possible, access_for_validation):
-  If the paper does NOT explicitly mention it, return null (do not default to false).
+  If the paper does NOT explicitly mention it, return null.
   Return false ONLY if the text explicitly states it is not possible / not done / not available.
 """
+
 
 
 
