@@ -8,6 +8,7 @@ from cohort_runtime_utils import (
     _is_empty_value,
     _normalize_ws,
     _ordered_keys_from_template,
+    _postprocess_section_results,
     _serialize_value,
 )
 
@@ -68,3 +69,47 @@ def test_extract_first_doi_returns_first_match_without_trailing_punctuation() ->
     text = "See doi:10.1186/s12967-019-2122-x), and also 10.1000/xyz123."
     assert _extract_first_doi(text) == "10.1186/s12967-019-2122-x"
     assert _extract_first_doi("No DOI present") is None
+
+
+def test_postprocess_does_not_use_publication_doi_as_resource_pid() -> None:
+    results = {
+        "task_overview": {
+            "pid": None,
+            "name": "OncoLifeS",
+            "acronym": "OncoLifeS",
+        },
+        "task_information": {
+            "publications": [
+                {
+                    "doi": "10.1186/s12967-019-2122-x",
+                    "title": "The OncoLifeS data-biobank for oncology",
+                }
+            ]
+        },
+    }
+    paper_text = (
+        "The OncoLifeS data-biobank for oncology. "
+        "https://doi.org/10.1186/s12967-019-2122-x"
+    )
+
+    _postprocess_section_results(results, paper_text)
+
+    assert results["task_overview"]["pid"] is None
+
+
+
+
+
+def test_postprocess_preserves_explicit_resource_pid() -> None:
+    results = {
+        "task_overview": {
+            "pid": "https://doi.org/10.34760/5f5b7ff62dd52",
+            "name": "Example Cohort",
+            "acronym": "EXAMPLE",
+        }
+    }
+    paper_text = "This paper also has DOI 10.1186/s12967-019-2122-x."
+
+    _postprocess_section_results(results, paper_text)
+
+    assert results["task_overview"]["pid"] == "https://doi.org/10.34760/5f5b7ff62dd52"
