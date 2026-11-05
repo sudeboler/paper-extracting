@@ -1,5 +1,11 @@
 # paper-extracting
 
+## Running on Vaxtron (UMCG HPC)
+
+For cohort metadata extraction on the UMCG Vaxtron HPC cluster, see the
+[Vaxtron setup and usage guide](docs/VAXTRON.md).
+
+
 `paper-extracting` is the active cohort extraction pipeline in this repository. It extracts structured cohort metadata from one or more PDF papers, runs a local `llama.cpp`-based inference setup on a Slurm GPU node, fetches live EMX2 schema and ontology inputs, optionally uses a shared OCR model for weak PDFs, and writes a cohort workbook plus detailed run artifacts.
 
 This README explains the complete workflow:
@@ -18,8 +24,8 @@ If you already have cluster access and just want the shortest working route, use
 
 These examples assume:
 
-- local repo path: `/Users/p.jansma/Documents/GitHub/paper-extracting/`
-- cluster repo path: `/groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/paper-extracting/`
+- local repo path: `$HOME/Documents/GitHub/paper-extracting/`
+- cluster repo path: `/path/to/your/cluster/workdir/Repositories/paper-extracting/`
 - SSH host alias: `tunnel+nibbler`
 
 Adjust those paths if your own setup differs.
@@ -28,16 +34,16 @@ Adjust those paths if your own setup differs.
 
 ```bash
 rsync -avhP \
-  /Users/p.jansma/Documents/GitHub/paper-extracting/ \
-  tunnel+nibbler:/groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/paper-extracting/
+  $HOME/Documents/GitHub/paper-extracting/ \
+  tunnel+nibbler:/path/to/your/cluster/workdir/Repositories/paper-extracting/
 ```
 
 ### 2. Sync one PDF to the cluster
 
 ```bash
 rsync -avhP \
-  /Users/p.jansma/Documents/GitHub/paper-extracting/data/oncolifes.pdf \
-  tunnel+nibbler:/groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/paper-extracting/data/
+  $HOME/Documents/GitHub/paper-extracting/data/oncolifes.pdf \
+  tunnel+nibbler:/path/to/your/cluster/workdir/Repositories/paper-extracting/data/
 ```
 
 If your PDF lives somewhere else locally, sync that file instead.
@@ -46,13 +52,13 @@ If your PDF lives somewhere else locally, sync that file instead.
 
 ```bash
 ssh tunnel+nibbler
-cd /groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/paper-extracting
+cd /path/to/your/cluster/workdir/Repositories/paper-extracting
 ```
 
 ### 4. Preferred route: submit runtime setup as a Slurm batch job
 
 ```bash
-sbatch --export=ALL,WORKDIR=/groups/umcg-gcc/tmp02/users/umcg-pjansma,BUILD_LLAMA=1 setup_cluster_runtime.sbatch
+sbatch --export=ALL,WORKDIR=/path/to/your/cluster/workdir,BUILD_LLAMA=1 setup_cluster_runtime.sbatch
 ```
 
 This is the standard and preferred setup route for this project. It runs `setup_cluster_runtime.sh` on a GPU node and prepares a git-ignored runtime inside this repo.
@@ -110,14 +116,14 @@ cohort_extract-<jobid>.err
 
 ```bash
 rsync -avhP \
-  tunnel+nibbler:/groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/paper-extracting/oncolifes_cohort.xlsx \
-  /Users/p.jansma/Documents/cluster_data/
+  tunnel+nibbler:/path/to/your/cluster/workdir/Repositories/paper-extracting/oncolifes_cohort.xlsx \
+  $HOME/Documents/cluster_data/
 ```
 
 ### 9. Inspect the run artifacts if needed
 
 ```bash
-ls -1dt /groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/paper-extracting/logs/runs/* | head
+ls -1dt /path/to/your/cluster/workdir/Repositories/paper-extracting/logs/runs/* | head
 ```
 
 Inside the newest run directory, the first files to inspect are usually:
@@ -161,7 +167,7 @@ The recommended way to start this project is:
 
 ```bash
 ssh tunnel+nibbler
-cd /groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/paper-extracting
+cd /path/to/your/cluster/workdir/Repositories/paper-extracting
 ```
 
 ### Preferred setup route: `setup_cluster_runtime.sbatch`
@@ -169,7 +175,7 @@ cd /groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/paper-extracting
 This is the normal route for this project. Run:
 
 ```bash
-sbatch --export=ALL,WORKDIR=/groups/umcg-gcc/tmp02/users/umcg-pjansma,BUILD_LLAMA=1 setup_cluster_runtime.sbatch
+sbatch --export=ALL,WORKDIR=/path/to/your/cluster/workdir,BUILD_LLAMA=1 setup_cluster_runtime.sbatch
 ```
 
 This wrapper job:
@@ -190,8 +196,8 @@ For most users, this is the correct way to do setup.
 
 It does not download the shared OCR model used by default in `src/run_cluster_cohort.sh`. The OCR defaults still point to the existing shared cluster paths:
 
-- `/groups/umcg-gcc/tmp02/users/umcg-pjansma/Models/GGUF/GLM-OCR/GLM-OCR-Q8_0.gguf`
-- `/groups/umcg-gcc/tmp02/users/umcg-pjansma/Models/GGUF/GLM-OCR/mmproj-GLM-OCR-Q8_0.gguf`
+- `/path/to/your/cluster/workdir/Models/GGUF/GLM-OCR/GLM-OCR-Q8_0.gguf`
+- `/path/to/your/cluster/workdir/Models/GGUF/GLM-OCR/mmproj-GLM-OCR-Q8_0.gguf`
 
 If those files are unavailable on your cluster, either:
 
@@ -217,7 +223,7 @@ module load CMake/3.23.1-GCCcore-11.3.0
 module load CUDA/12.2.0
 module load Python/3.10.4-GCCcore-11.3.0
 
-WORKDIR=/groups/umcg-gcc/tmp02/users/umcg-pjansma \
+WORKDIR=/path/to/your/cluster/workdir \
 BUILD_LLAMA=1 \
 bash setup_cluster_runtime.sh
 ```
@@ -227,7 +233,7 @@ This manual route does the same core setup work, but `setup_cluster_runtime.sbat
 If `llama.cpp` is already built and you only want to refresh the venv and model file, you can run:
 
 ```bash
-WORKDIR=/groups/umcg-gcc/tmp02/users/umcg-pjansma \
+WORKDIR=/path/to/your/cluster/workdir \
 BUILD_LLAMA=0 \
 bash setup_cluster_runtime.sh
 ```
@@ -357,19 +363,19 @@ Fallback if present:
 Default OCR model:
 
 ```bash
-/groups/umcg-gcc/tmp02/users/umcg-pjansma/Models/GGUF/GLM-OCR/GLM-OCR-Q8_0.gguf
+/path/to/your/cluster/workdir/Models/GGUF/GLM-OCR/GLM-OCR-Q8_0.gguf
 ```
 
 Default OCR `mmproj`:
 
 ```bash
-/groups/umcg-gcc/tmp02/users/umcg-pjansma/Models/GGUF/GLM-OCR/mmproj-GLM-OCR-Q8_0.gguf
+/path/to/your/cluster/workdir/Models/GGUF/GLM-OCR/mmproj-GLM-OCR-Q8_0.gguf
 ```
 
 Default OCR `llama-server`:
 
 ```bash
-/groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/llama.cpp-glmtest/build/bin/llama-server
+/path/to/your/cluster/workdir/Repositories/llama.cpp-glmtest/build/bin/llama-server
 ```
 
 ### Default ports
@@ -398,15 +404,15 @@ Example:
 
 ```bash
 rsync -avhP \
-  /Users/p.jansma/Documents/GitHub/paper-extracting/ \
-  tunnel+nibbler:/groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/paper-extracting/
+  $HOME/Documents/GitHub/paper-extracting/ \
+  tunnel+nibbler:/path/to/your/cluster/workdir/Repositories/paper-extracting/
 ```
 
 Then log in and move into the project directory:
 
 ```bash
 ssh tunnel+nibbler
-cd /groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/paper-extracting
+cd /path/to/your/cluster/workdir/Repositories/paper-extracting
 ```
 
 
@@ -418,16 +424,16 @@ Example for one file:
 
 ```bash
 rsync -avhP \
-  /Users/p.jansma/Documents/GitHub/paper-extracting/data/oncolifes.pdf \
-  tunnel+nibbler:/groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/paper-extracting/data/
+  $HOME/Documents/GitHub/paper-extracting/data/oncolifes.pdf \
+  tunnel+nibbler:/path/to/your/cluster/workdir/Repositories/paper-extracting/data/
 ```
 
 Example for multiple files:
 
 ```bash
 rsync -avhP \
-  /Users/p.jansma/Documents/GitHub/paper-extracting/data/ \
-  tunnel+nibbler:/groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/paper-extracting/data/
+  $HOME/Documents/GitHub/paper-extracting/data/ \
+  tunnel+nibbler:/path/to/your/cluster/workdir/Repositories/paper-extracting/data/
 ```
 
 
@@ -436,7 +442,7 @@ rsync -avhP \
 The preferred route is:
 
 ```bash
-sbatch --export=ALL,WORKDIR=/groups/umcg-gcc/tmp02/users/umcg-pjansma,BUILD_LLAMA=1 setup_cluster_runtime.sbatch
+sbatch --export=ALL,WORKDIR=/path/to/your/cluster/workdir,BUILD_LLAMA=1 setup_cluster_runtime.sbatch
 ```
 
 Wait for the job:
@@ -618,8 +624,8 @@ Example:
 
 ```bash
 rsync -avhP \
-  tunnel+nibbler:/groups/umcg-gcc/tmp02/users/umcg-pjansma/Repositories/paper-extracting/oncolifes_cohort.xlsx \
-  /Users/p.jansma/Documents/cluster_data/
+  tunnel+nibbler:/path/to/your/cluster/workdir/Repositories/paper-extracting/oncolifes_cohort.xlsx \
+  $HOME/Documents/cluster_data/
 ```
 
 If you wrote to a different output filename, pull that file instead.
