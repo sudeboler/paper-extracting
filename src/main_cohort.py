@@ -12,6 +12,10 @@ from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 
+from cohort_narrative_policy import (
+    append_narrative_guidance,
+    audit_final_narrative_workbook,
+)
 from llm_client import OpenAICompatibleClient
 from extract_pipeline import load_pdf_text, build_context_prefix_messages
 import fix_molgenis_staging_types_callable as legacy_types
@@ -263,15 +267,10 @@ def _normalize_or_infer_resource_types(overview: Dict[str, Any]) -> List[str]:
 
 def _resource_ref(label: str, overview: Dict[str, Any] | None) -> str:
     ov = overview or {}
-    for key in ("pid", "name", "acronym"):
+    for key in ("acronym", "name"):
         val = ov.get(key)
         if not _is_empty_value(val):
-            if key == "pid":
-                s = str(val).strip()
-                s = re.sub(r"^(?:https?://)?(?:dx\.)?doi\.org/", "", s, flags=re.IGNORECASE)
-                s = re.sub(r"^doi:\s*", "", s, flags=re.IGNORECASE)
-                return s.rstrip(".,;:)")
-            return str(val)
+            return str(val).strip()
     return label
 
 
@@ -375,6 +374,20 @@ def _project_row_to_columns(row: Dict[str, Any], columns: List[str]) -> Dict[str
         if column_name in row:
             projected[column_name] = row[column_name]
     return projected
+
+
+def _project_resource_as_collection(
+    resource_row: Dict[str, Any],
+    collection_columns: List[str],
+) -> Dict[str, Any]:
+    """Project resource metadata into a collection without assigning a catalogue PID."""
+    collection_row = _project_row_to_columns(resource_row, collection_columns)
+
+    # Catalogue collection PIDs are assigned later, not derived from publications.
+    if "pid" in collection_row:
+        collection_row["pid"] = ""
+
+    return collection_row
 
 
 def _drop_parent_rows_with_child_ids(
@@ -487,14 +500,27 @@ def _serialize_runtime_scalar_value(
         return ""
     if column_type == "ref":
         return legacy_types._extract_ref_scalar(value)
+
     if column_type == "ontology":
         scalar = legacy_types._extract_ontology_scalar(value)
         if not scalar:
             return ""
+
         allowed_values = _registry_allowed_values(meta)
         if allowed_values and scalar not in allowed_values:
-            return ""
+            # Resolve capitalization differences using the canonical
+            # ontology label, but reject unknown or ambiguous values.
+            matches = [
+                allowed
+                for allowed in allowed_values
+                if allowed.casefold() == scalar.casefold()
+            ]
+            if len(matches) != 1:
+                return ""
+            scalar = matches[0]
+
         return legacy_types.coerce_ontology(table_name, column_name, scalar)
+
     if column_type == "heading":
         return legacy_types.coerce_heading(value)
     if column_type == "date":
@@ -668,26 +694,46 @@ def _ensure_organisation_ids(
 
 def _build_local_organisation_ref_map(organisations: List[Dict[str, Any]]) -> Dict[str, str]:
     """
-    Build a local name->id map so cross-sheet references always use Organisation IDs.
+    Resolve local contributor identities using their own identifying fields.
+
+    The `organisation` field identifies an external catalogue institution,
+    and `other_organisation` is its free-text fallback. Neither is a
+    reliable alias for a local contributor, particularly when multiple
+    departments belong to the same institution.
+
+    Ambiguous local identity labels are not resolved arbitrarily.
     """
     out: Dict[str, str] = {}
+    ambiguous: set[str] = set()
+
     for item in organisations:
         if not isinstance(item, dict) or not _is_organisation_contributor(item):
             continue
+
         org_id = str(item.get("id") or "").strip()
         if not org_id:
             continue
+
         for candidate in (
             item.get("id"),
             item.get("name"),
-            item.get("organisation"),
-            item.get("other_organisation"),
             item.get("acronym"),
         ):
             key = _normalize_org_ref_key(candidate)
-            if key and key not in out:
+            if not key:
+                continue
+
+            existing = out.get(key)
+            if existing is not None and existing != org_id:
+                ambiguous.add(key)
+            elif existing is None:
                 out[key] = org_id
-    return out
+
+    return {
+        key: org_id
+        for key, org_id in out.items()
+        if key not in ambiguous
+    }
 
 
 def _resolve_local_organisation_ref(raw_value: Any, org_ref_map: Dict[str, str]) -> str:
@@ -1136,6 +1182,12 @@ def cli() -> None:
             dynamic_prompt_summary = {}
             log.warning("Could not build dynamic EMX2 runtime; falling back to legacy prompt/validation: %s", e)
 
+    narrative_guidance_count = append_narrative_guidance(cfg)
+    log.info(
+        "Applied narrative presentation guidance to %d extraction task(s).",
+        narrative_guidance_count,
+    )
+
     if dynamic_runtime_enabled:
         try:
             write_task_prompts_toml(cfg, f"{args.output}.dynamic_prompts.toml")
@@ -1363,19 +1415,25 @@ def cli() -> None:
                 "message": "Combined resource row has no payload after extraction.",
             })
 
+
         overview = per_section_results.get("task_overview", {}) or {}
         resource_row, resource_ref = _resource_row_from_sections(label, pdf_path, per_section_results, run_issues)
         resource_rows.append(resource_row)
+
         if dynamic_registry:
             collection_columns = _registry_import_columns(dynamic_registry, "Collections")
             if collection_columns:
-                collection_row = _project_row_to_columns(resource_row, collection_columns)
+                collection_row = _project_resource_as_collection(resource_row, collection_columns)
+
                 if "id" in collection_row and not str(collection_row.get("id") or "").strip():
                     collection_row["id"] = resource_ref
+
                 if "resource" in collection_row and not str(collection_row.get("resource") or "").strip():
                     collection_row["resource"] = resource_ref
+
                 if "type" in collection_row and not str(collection_row.get("type") or "").strip():
                     collection_row["type"] = _serialize_multi_value(_normalize_or_infer_resource_types(overview))
+
                 collection_rows.append(collection_row)
 
         internal_ids = overview.get("internal_identifiers", []) or []
@@ -1537,17 +1595,20 @@ def cli() -> None:
                 continue
             base_row = _build_agent_base_row(resource_ref, item)
             if _is_organisation_contributor(item):
-                base_row["organisation"] = _resolve_local_organisation_ref(
-                    item.get("organisation"),
-                    org_ref_map,
+                # The inherited Agents.organisation field targets the
+                # external CatalogueOntologies.Organisations table, not a
+                # local Organisations contributor ID. Keep the source
+                # label until external-reference normalisation.
+                base_row["organisation"] = _serialize_value(
+                    item.get("organisation")
                 )
             else:
+                # Preserve the existing Individual-agent pathway.
                 base_row["organisation"] = _resolve_local_organisation_ref(
                     item.get("organisation"),
                     org_ref_map,
                 )
-            _clear_self_organisation_reference(base_row)
-            _clear_organisation_parent_reference(base_row)
+                _clear_self_organisation_reference(base_row)
             if _is_organisation_contributor(item):
                 org_row = _blank_row(COHORT_SHEETS["Organisations"])
                 org_row.update(base_row)
@@ -1794,8 +1855,12 @@ def cli() -> None:
             continue
         frames[table_name] = pd.DataFrame(rows, columns=columns)
 
+
     with pd.ExcelWriter(args.output, engine=excel_engine) as writer:
         for sheet_name, frame in frames.items():
+            if sheet_name == "Resources" and frame.empty:
+                continue
+
             frame.to_excel(writer, sheet_name=sheet_name, index=False)
 
     if dynamic_runtime_enabled and dynamic_registry:
@@ -1858,24 +1923,85 @@ def cli() -> None:
         else:
             log.warning("No schema workbook found; skipping datatype normalization.")
 
+    # Audit the final workbook after EMX2 datatype normalization.
+    # An audit failure must not prevent other diagnostics from being saved.
+    narrative_audit_path = f"{args.output}.narrative_audit.json"
+
+    try:
+        narrative_audit = audit_final_narrative_workbook(
+            args.output,
+            dynamic_registry,
+        )
+    except Exception as exc:
+        log.exception(
+            "Narrative audit failed; capitalization has NOT been validated."
+        )
+        narrative_audit = {
+            "status": "failed",
+            "finding_count": None,
+            "findings": [],
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+            "interpretation": (
+                "Narrative auditing failed. No conclusion about "
+                "capitalization correctness can be drawn."
+            ),
+        }
+
+    try:
+        write_json(narrative_audit_path, narrative_audit)
+    except (OSError, TypeError, ValueError):
+        log.exception(
+            "Could not save narrative audit report: %s",
+            narrative_audit_path,
+        )
+    else:
+        log.info(
+            "Narrative audit: %s (status=%s, review_candidates=%s)",
+            narrative_audit_path,
+            narrative_audit["status"],
+            narrative_audit.get("finding_count", "not evaluated"),
+        )
+
+    # Preserve the existing dynamic EMX2 provenance reports.
     if dynamic_registry:
         try:
-            write_json(f"{args.output}.dynamic_emx2_registry.json", dynamic_registry)
-            log.info("Wrote dynamic EMX2 registry: %s.dynamic_emx2_registry.json", args.output)
+            write_json(
+                f"{args.output}.dynamic_emx2_registry.json",
+                dynamic_registry,
+            )
+            log.info(
+                "Wrote dynamic EMX2 registry: %s.dynamic_emx2_registry.json",
+                args.output,
+            )
         except (OSError, TypeError, ValueError) as e:
-            log.warning("Could not write dynamic EMX2 registry dump: %s", e)
-        try:
-            write_json(f"{args.output}.dynamic_prompt_constraints.json", dynamic_prompt_summary)
-            log.info("Wrote dynamic prompt constraints: %s.dynamic_prompt_constraints.json", args.output)
-        except (OSError, TypeError, ValueError) as e:
-            log.warning("Could not write dynamic prompt constraints dump: %s", e)
+            log.warning(
+                "Could not write dynamic EMX2 registry dump: %s", e
+            )
 
+        try:
+            write_json(
+                f"{args.output}.dynamic_prompt_constraints.json",
+                dynamic_prompt_summary,
+            )
+            log.info(
+                "Wrote dynamic prompt constraints: %s.dynamic_prompt_constraints.json",
+                args.output,
+            )
+        except (OSError, TypeError, ValueError) as e:
+            log.warning(
+                "Could not write dynamic prompt constraints dump: %s", e
+            )
+
+    # Preserve the existing extraction-issues report.
     try:
         with open(issue_file, "w", encoding="utf-8") as f:
             json.dump(run_issues, f, ensure_ascii=False, indent=2)
         log.info("Wrote issues report: %s", issue_file)
     except (OSError, TypeError, ValueError) as e:
-        log.warning("Could not write issues report %s: %s", issue_file, e)
+        log.warning(
+            "Could not write issues report %s: %s", issue_file, e
+        )
 
     log.info("Done. Cohort workbook written to %s", args.output)
 

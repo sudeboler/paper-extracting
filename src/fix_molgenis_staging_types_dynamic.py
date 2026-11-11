@@ -518,11 +518,13 @@ def fix_workbook_dynamic(
     llm_state = {"lookups": 0}
 
     organisations_source_path = _resolve_organisations_source_path(runtime_registry)
-    if organisations_source_path:
-        legacy._normalize_external_organisation_refs(
-            wb,
-            legacy._load_external_organisations_index(organisations_source_path),
-        )
+
+    # Also apply the safe free-text fallback when the external catalogue
+    # is unavailable. Never export an unverified external reference.
+    organisation_review_findings = legacy._normalize_external_organisation_refs(
+        wb,
+        legacy._load_external_organisations_index(organisations_source_path),
+    )
 
     for sheet_name in wb.sheetnames:
         if sheet_name not in schema:
@@ -583,6 +585,9 @@ def fix_workbook_dynamic(
                         cell.value = legacy.coerce_ref_array(sheet_name, column_name, cell.value, ref_index)
 
     wb.save(output_path)
+    legacy._write_organisation_review_report(
+        output_path, organisation_review_findings
+    )
     return output_path
 
 

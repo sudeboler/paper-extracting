@@ -559,6 +559,7 @@ def _parse_array_items(value: Any) -> list[Any] | None:
         except (ValueError, SyntaxError):
             pass
 
+
     # CSV-style parsing to preserve commas inside quoted values.
     try:
         import csv
@@ -566,15 +567,19 @@ def _parse_array_items(value: Any) -> list[Any] | None:
 
         reader = csv.reader(StringIO(s), skipinitialspace=True)
         row = next(reader, None)
-        if row is not None and len(row) > 1:
+        if row is not None and (
+            len(row) > 1 or (s.startswith('"') and s.endswith('"'))
+        ):
             return [part for part in row]
     except (csv.Error, OSError):
         pass
+
 
     if "," in s:
         return [part.strip() for part in s.split(",") if part.strip()]
 
     return [s]
+
 
 
 def coerce_array(table: str, column: str, value: Any) -> Any:
@@ -877,49 +882,167 @@ def _match_external_organisation(external_index: Dict[str, Any], raw_value: Any)
     return ""
 
 
-def _normalize_external_organisation_refs(wb: Any, external_index: Dict[str, Any]) -> None:
-    if not external_index:
-        return
+def _normalize_external_organisation_refs(
+    wb: Any,
+    external_index: Dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Resolve external institution names without silently merging identities.
+
+    The `organisation` field on Organisation agents targets the external
+    CatalogueOntologies.Organisations table. The `other organisation`
+    field preserves an unresolved source-supported institution label.
+
+    Return structured review findings for conflicting input labels.
+    """
+    import logging
+
+    findings: list[dict[str, Any]] = []
+    logger = logging.getLogger(__name__)
 
     for sheet_name in ("Agents", "Organisations"):
         if sheet_name not in wb.sheetnames:
             continue
+
         ws = wb[sheet_name]
         hdr = _sheet_header_index(ws)
         organisation_col = hdr.get("organisation")
         other_col = hdr.get("other organisation")
         type_col = hdr.get("type")
+        id_col = hdr.get("id")
+
         if not organisation_col:
             continue
 
         for row_idx in range(2, ws.max_row + 1):
-            typ = _clean_string(ws.cell(row=row_idx, column=type_col).value) if type_col else ""
+            typ = (
+                _clean_string(ws.cell(row=row_idx, column=type_col).value)
+                if type_col else ""
+            )
             if sheet_name == "Agents" and typ != "Organisation":
                 continue
             if sheet_name == "Organisations" and typ and typ != "Organisation":
                 continue
 
-            raw_organisation = _clean_string(ws.cell(row=row_idx, column=organisation_col).value)
-            raw_other = _clean_string(ws.cell(row=row_idx, column=other_col).value) if other_col else ""
-            mapped = ""
-            reference_candidates = [raw_organisation]
-            if raw_other:
-                reference_candidates.append(raw_other)
-            for candidate in reference_candidates:
-                mapped = _match_external_organisation(external_index, candidate)
-                if mapped:
-                    break
+            raw_organisation = _clean_string(
+                ws.cell(row=row_idx, column=organisation_col).value
+            )
+            raw_other = (
+                _clean_string(ws.cell(row=row_idx, column=other_col).value)
+                if other_col else ""
+            )
+
+            primary_match = _match_external_organisation(
+                external_index, raw_organisation
+            )
+            fallback_match = _match_external_organisation(
+                external_index, raw_other
+            )
+
+            same_identity = (
+                bool(raw_organisation and raw_other)
+                and (
+                    _normalize_ref_token(raw_organisation)
+                    == _normalize_ref_token(raw_other)
+                    or bool(
+                        primary_match
+                        and fallback_match
+                        and primary_match == fallback_match
+                    )
+                )
+            )
+
+            if raw_organisation and raw_other and not same_identity:
+                record_id = (
+                    _clean_string(ws.cell(row=row_idx, column=id_col).value)
+                    if id_col else ""
+                )
+                finding = {
+                    "sheet": sheet_name,
+                    "excel_row": row_idx,
+                    "id": record_id,
+                    "reason": "distinct_organisation_labels",
+                    "original_organisation": raw_organisation,
+                    "original_other_organisation": raw_other,
+                    "resolved_primary": primary_match,
+                    "resolved_other": fallback_match,
+                    "requires_review": True,
+                }
+                findings.append(finding)
+
+                logger.warning(
+                    "Organisation mapping review needed: %s row %s "
+                    "(id=%r): organisation=%r, other organisation=%r",
+                    sheet_name,
+                    row_idx,
+                    record_id,
+                    raw_organisation,
+                    raw_other,
+                )
+
+                # Keep a verified primary reference, if available.
+                # The second source label is preserved unchanged.
+                ws.cell(
+                    row=row_idx, column=organisation_col
+                ).value = primary_match or ""
+                continue
+
+            mapped = primary_match or fallback_match
 
             if mapped:
-                ws.cell(row=row_idx, column=organisation_col).value = mapped
+                ws.cell(
+                    row=row_idx, column=organisation_col
+                ).value = mapped
                 if other_col:
                     ws.cell(row=row_idx, column=other_col).value = ""
                 continue
 
             if raw_organisation:
-                ws.cell(row=row_idx, column=organisation_col).value = ""
+                ws.cell(
+                    row=row_idx, column=organisation_col
+                ).value = ""
+
                 if other_col and not raw_other:
-                    ws.cell(row=row_idx, column=other_col).value = raw_organisation
+                    ws.cell(
+                        row=row_idx, column=other_col
+                    ).value = raw_organisation
+                elif not other_col:
+                    finding = {
+                        "sheet": sheet_name,
+                        "excel_row": row_idx,
+                        "reason": "missing_other_organisation_column",
+                        "original_organisation": raw_organisation,
+                        "requires_review": True,
+                    }
+                    findings.append(finding)
+                    logger.warning(
+                        "No free-text fallback column for %s row %s",
+                        sheet_name,
+                        row_idx,
+                    )
+
+    return findings
+
+
+
+def _write_organisation_review_report(
+    output_path: str | Path,
+    findings: list[dict[str, Any]],
+) -> Path:
+    """Persist organisation mapping decisions requiring human review."""
+    import json
+
+    report_path = Path(str(output_path) + ".organisation_review.json")
+    report = {
+        "status": "review_required" if findings else "no_conflicts_detected",
+        "workbook": Path(output_path).name,
+        "finding_count": len(findings),
+        "findings": findings,
+    }
+    report_path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return report_path
 
 
 def _build_organisation_ref_maps(wb: Any) -> tuple[Dict[str, str], Dict[str, str]]:
@@ -947,7 +1070,6 @@ def _build_organisation_ref_maps(wb: Any) -> tuple[Dict[str, str], Dict[str, str
         type_col = hdr.get("type")
         id_col = hdr.get("id")
         name_col = hdr.get("name")
-        other_col = hdr.get("other organisation")
         for row_idx in range(2, ws.max_row + 1):
             if require_type_filter and type_col:
                 typ = _clean_string(ws.cell(row=row_idx, column=type_col).value)
@@ -955,7 +1077,7 @@ def _build_organisation_ref_maps(wb: Any) -> tuple[Dict[str, str], Dict[str, str
                     continue
 
             canonical = ""
-            for col_idx in (id_col, name_col, other_col):
+            for col_idx in (id_col, name_col):
                 if not col_idx:
                     continue
                 value = _clean_string(ws.cell(row=row_idx, column=col_idx).value)
@@ -965,7 +1087,7 @@ def _build_organisation_ref_maps(wb: Any) -> tuple[Dict[str, str], Dict[str, str
             if not canonical:
                 continue
 
-            for col_idx in (id_col, name_col, other_col):
+            for col_idx in (id_col, name_col):
                 if not col_idx:
                     continue
                 token = _clean_string(ws.cell(row=row_idx, column=col_idx).value)
@@ -1051,7 +1173,7 @@ def _build_ref_index(wb: Any) -> Dict[str, Dict[str, str]]:
     ref_index: Dict[str, Dict[str, str]] = {}
     organisation_exact, organisation_norm = _build_organisation_ref_maps(wb)
     for table, vals in candidates.items():
-        if table == "Organisations" and (organisation_exact or organisation_norm):
+        if table == "Organisations":
             canonical_values = set(organisation_exact.values()) | set(organisation_norm.values())
             ref_index[table] = {"__size__": str(len(canonical_values))}
             ref_index[table].update({f"e:{k}": v for k, v in organisation_exact.items()})
@@ -1279,7 +1401,7 @@ def fix_workbook(
                 cell = ws.cell(row=row_idx, column=col_idx)
                 cell.value = normalize_value(sheet_name, column_name, col_type, cell.value)
 
-    _normalize_external_organisation_refs(
+    organisation_review_findings = _normalize_external_organisation_refs(
         wb,
         _load_external_organisations_index(ref_organisations_csv),
     )
@@ -1311,6 +1433,9 @@ def fix_workbook(
                 )
 
     wb.save(output_path)
+    _write_organisation_review_report(
+        output_path, organisation_review_findings
+    )
     return output_path
 
 

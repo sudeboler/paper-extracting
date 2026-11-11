@@ -328,7 +328,7 @@ def _safe_cache_name(rel_path: str) -> str:
 
 
 def _load_csv_rows(path: Path) -> List[Dict[str, str]]:
-    with path.open("r", encoding="utf-8", newline="") as f:
+    with path.open("r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
         return [
             {str(k or ""): str(v or "") for k, v in row.items()}

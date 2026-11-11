@@ -51,8 +51,10 @@ GLOBAL RULES
 pid / name / local_name / acronym
 --------------------------------------------------
 - pid:
-  Only if an explicit persistent identifier is stated (e.g. registry ID, trial ID, DOI).
-  Do NOT use acronym as pid.
+  Always return null for the catalogue collection PID.
+  Catalogue collection PIDs will be generated after import by the data manager.
+  Do NOT use the publication DOI, registry ID, trial ID, or acronym as the collection PID.
+  Publication DOIs belong in Publications.doi; other explicit identifiers belong in their appropriate identifier fields when supported.
 
 - name:
   Only if the text explicitly labels a resource name (e.g. "<name> study/cohort/registry").
@@ -1537,10 +1539,21 @@ Fields:
 
 - organisation / other_organisation / department:
     ONLY for type="Organisation":
-    - organisation: organisation name if explicitly stated in the PDF (verbatim or near-verbatim).
-    - other_organisation: ONLY if the PDF explicitly indicates an alternative spelling/name/identifier for the organisation.
-    - department: ONLY if explicitly stated (e.g., "Department of ...").
-    If not explicit -> null.
+    - organisation: the explicitly named institution, in the PDF's own
+      wording. If this contributor is a department or research unit,
+      use its explicitly identified parent institution here.
+      This is an unverified source label for downstream catalogue matching,
+      NOT a local contributor ID or a claim of ROR verification.
+      If the institution is not explicit, return null.
+    - other_organisation: return null during extraction. This field is
+      the EMX2 free-text fallback populated by deterministic normalisation
+      when an institution cannot be matched to the external catalogue.
+      Do not use it for alternative spellings or department names.
+    - department: the explicitly named department or organisational unit
+      within that institution, including a centre or division only when
+      the paper clearly identifies it as such. Never infer a department
+      solely from an institution name, contributor ID, or author affiliation.
+      If not explicit, return null.
 
 - website / email:
     Only if explicitly shown in the PDF (URL/email). Otherwise null.
@@ -1707,6 +1720,14 @@ organisations_involved
 - Output one row per explicitly named contributing organisation/agent.
 - id is required and must come from explicit wording (acronym/short name/clear identifier).
 - type must be exactly "Organisation" or "Individual".
+- For type="Organisation", set name=null.
+- For type="Organisation", organisation is the explicitly stated source
+  institution name, not a verified ROR value or local contributor ID.
+- Set other_organisation=null during extraction; downstream catalogue
+  matching controls this free-text fallback.
+- Set department only for an explicitly named department, centre, division,
+  or unit within that institution. Never infer one from an ID or affiliation.
+- Never invent a parent institution when only a unit is named.
 - role (STRICT dropdown; multi-select), allowed values:
   "Data originator", "Data holder", "Data provider", "Researcher", "Surveillance", "Data access provider", "Other".
   Add items only when explicitly stated; otherwise [].

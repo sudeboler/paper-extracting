@@ -1165,11 +1165,6 @@ def _postprocess_section_results(
                     }
                 ]
 
-    # Fill missing PID with the first explicit DOI (if present).
-    if isinstance(overview, dict) and _is_empty_value(overview.get("pid")):
-        doi = _extract_first_doi(paper_text)
-        if doi:
-            overview["pid"] = doi
 
     # ------------------------------------------------------------------
     # PASS X3 fallback: derive resource-level areas from collection events
